@@ -1,5 +1,5 @@
 -m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf
---n-cpu-moe 40
+--n-cpu-moe 30
 
 # Common config
 --fit-ctx 75000
@@ -17,3 +17,4 @@
 -b 8192
 -ub 2048
 --slot-prompt-similarity 0.9
+--slot-save-path .slots/
