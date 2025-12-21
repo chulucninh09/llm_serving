@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Read arguments from llama_args.sh, skipping comments and empty lines
+ARGS=()
+while IFS= read -r line; do
+    # Skip comment lines (starting with #) and empty lines
+    if [[ ! "$line" =~ ^[[:space:]]*# ]] && [[ -n "${line// }" ]]; then
+        # Split the line into arguments and add them to ARGS array
+        read -ra LINE_ARGS <<< "$line"
+        ARGS+=("${LINE_ARGS[@]}")
+    fi
+done < llama_args.sh
+
+# Run llama-server with the parsed arguments
+./build/bin/llama-server "${ARGS[@]}"
+
