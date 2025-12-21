@@ -18,7 +18,7 @@ sudo sed -i 's/archive.ubuntu.com/mirror.azvps.vn\/ubuntu/g' /etc/apt/sources.li
 apt install ubuntu-drivers-common cmake ccache nvtop xorg nvidia-settings build-essential libomp-dev -y
 
 # Install nvidia-driver and nvidia-smi
-ubuntu-drivers install nvidia:580-server
+ubuntu-drivers install nvidia:580-server --gpgpu
 apt install -y nvidia-utils-580-server
 
 # Run gpu_undervolt.sh
@@ -29,9 +29,13 @@ wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/
 sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo apt-get update
 sudo apt-get -y install cuda-toolkit-13-1
+export PATH=/usr/local/cuda/bin:$PATH
 
 # Mount drive
+mkdir -p /mnt/llm-data/huggingface
 /dev/vdb /mnt/llm-data/huggingface ext4
+systemctl daemon-reload
+mount -a
 
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
