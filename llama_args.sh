@@ -18,3 +18,4 @@
 --slot-prompt-similarity 0.9
 --slot-save-path .slots/
 --numa distribute
+-t 16
