@@ -21,30 +21,8 @@ apt install ubuntu-drivers-common cmake ccache nvtop xorg nvidia-settings build-
 ubuntu-drivers install nvidia:580-server
 apt install -y nvidia-utils-580-server
 
-# Start x server
-X :0 &
-
-# Generate basic config
-export DISPLAY=:0
-nvidia-xconfig
-
-# Add coolbits
-# Section "Device"
-#     Identifier     "Device0"
-#     Driver         "nvidia"
-#     VendorName     "NVIDIA Corporation"
-#     BusID          "PCI:X:X:X"    # nvidia-smi will show this
-#     Option         "Coolbits" "28"
-#     Option         "AllowEmptyInitialConfiguration" "True"
-# EndSection
-
-# Overclock for undervolt
-nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=240
-
-# Limit clock
-nvidia-smi -pm 1
-nvidia-smi -lgc 210,1830
-nvidia-smi -pl 200
+# Run gpu_undervolt.sh
+./gpu_undervolt.sh
 
 # install cuda toolkit
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
