@@ -1,5 +1,6 @@
 #!/bin/bash
 
+export CUDA_DISABLE_PERF_BOOST=1
 # Read arguments from llama_args.sh, skipping comments and empty lines
 ARGS=()
 while IFS= read -r line; do

@@ -19,10 +19,10 @@ Section "Device"
 EndSection
 
 # Overclock for undervolt
-nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=210
-nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=210
+nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=220
+nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=220
 
 # Limit clock
 nvidia-smi -pm 1
-nvidia-smi -lgc 210,1700
+nvidia-smi -lgc 210,1830
 nvidia-smi -pl 200
