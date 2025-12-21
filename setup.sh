@@ -15,7 +15,7 @@ sudo sed -i 's/archive.ubuntu.com/mirror.azvps.vn\/ubuntu/g' /etc/apt/sources.li
 	&& sudo apt install gh -y
 
 # Install ubuntu-drivers, cmake, ccache, nvtop, xorg, nvidia-settings
-apt install ubuntu-drivers-common cmake ccache nvtop xorg nvidia-settings -y
+apt install ubuntu-drivers-common cmake ccache nvtop xorg nvidia-settings build-essential libomp-dev -y
 
 # Install nvidia-driver and nvidia-smi
 ubuntu-drivers install nvidia:580-server
