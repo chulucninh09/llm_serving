@@ -1,5 +1,5 @@
--m /mnt/llm-data/huggingface/models/meta-llama/Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf
---n-cpu-moe 30
+-m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf
+--n-cpu-moe 40
 
 # Common config
 --fit-ctx 75000
@@ -9,11 +9,11 @@
 -cram 16384
 -kvu
 -np 2
---host "0.0.0.0"
+--host 0.0.0.0
 --port 8000
 --jinja
 --no-context-shift
 -fa on
 -b 8192
--u 2048
+-ub 2048
 --slot-prompt-similarity 0.9

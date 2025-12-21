@@ -12,5 +12,5 @@ while IFS= read -r line; do
 done < llama_args.sh
 
 # Run llama-server with the parsed arguments
-./build/bin/llama-server "${ARGS[@]}"
+./llama.cpp/build/bin/llama-server "${ARGS[@]}"
 
