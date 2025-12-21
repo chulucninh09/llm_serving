@@ -63,3 +63,13 @@ uvx hf auth login
 
 # Download model
 uvx hf download 
+
+# Install blis
+cd blis
+./configure --enable-cblas -t openmp,pthreads auto
+# will install to /usr/local/ by default.
+make -j
+sudo make install
+
+# Compile llama.cpp
+./build_llama.cpp.sh
