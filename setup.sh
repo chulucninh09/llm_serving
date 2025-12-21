@@ -1,3 +1,7 @@
+# Setup tailscale for easier access
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --login-server=https://headscale.fidt.vn --reset --accept-dns --accept-routes
+
 # Download nessessary packages
 
 # Update ubuntu mirror
