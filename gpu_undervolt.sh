@@ -24,5 +24,9 @@ nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=220
 
 # Limit clock
 nvidia-smi -pm 1
-nvidia-smi -lgc 210,1830
+nvidia-smi -lgc 0,1600
+nvidia-smi -lmc 0,8000
 nvidia-smi -pl 200
+
+watch -n0.5 "nvidia-smi -i 0 -q -d POWER,CLOCK"
+watch -n0.5 "nvidia-smi -i 1 -q -d POWER,CLOCK"
