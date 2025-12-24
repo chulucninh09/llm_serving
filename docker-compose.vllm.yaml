@@ -1,0 +1,26 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:nightly-bb80f69bc98cbf062bf030cb11185f7ba526e28a
+    ports:
+      - 8000:8000
+    volumes:
+      - /mnt/llm-data/huggingface:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    command: 
+      - vllm
+      - serve
+
+      # Model config
+      - /root/.cache/huggingface/Qwen3-Coder-30B-A3B-Instruct-UD-Q6_K_XL.gguf
+      - --tokenizer Qwen/Qwen3-Coder-30B-A3B-Instruct
+      - --chat-template templates/qwen3coder.jinja2
+      - --tool-call-parser qwen3_xml      
+
+      # Common config
+      - --tensor-parallel-size 2
+      - --enable-prefix-caching
+      - --kv-offloading-size 8
+      - --kv-offloading-backend lmcache
+      - --host 0.0.0.0
+      - --port 8000

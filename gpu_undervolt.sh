@@ -22,10 +22,13 @@ EndSection
 nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=220
 nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=220
 
+nvidia-settings -a [gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels=1300
+nvidia-settings -a [gpu:1]/GPUMemoryTransferRateOffsetAllPerformanceLevels=1300
+
 # Limit clock
 nvidia-smi -pm 1
-nvidia-smi -lgc 0,1600
-nvidia-smi -lmc 0,8000
+nvidia-smi -lgc 0,1300
+# nvidia-smi -lmc 0,5000
 nvidia-smi -pl 200
 
 watch -n0.5 "nvidia-smi -i 0 -q -d POWER,CLOCK"

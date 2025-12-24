@@ -50,6 +50,7 @@ uvx hf auth login
 # Download model
 uvx hf download 
 
+# To use llama.cpp
 # Install blis
 cd blis
 ./configure --enable-cblas -t openmp,pthreads auto
@@ -59,3 +60,16 @@ sudo make install
 
 # Compile llama.cpp
 ./build_llama.cpp.sh
+
+# Run llama.cpp
+./run_llama.cpp.sh
+
+# To use vLLM
+# Install docker
+./install_docker.sh
+
+# Install nvidia container toolkit
+./install_nvidia_container_toolkit.sh
+
+# Run vLLM
+./run_vllm.sh

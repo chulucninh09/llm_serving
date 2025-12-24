@@ -1,10 +1,14 @@
 # -m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf
--m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-UD-Q6_K_XL.gguf
---temp 0.7
---top-p 0.8
---top-k 20
---repeat-penalty 1.05
---min-p 0.01
+--model /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-UD-Q6_K_XL.gguf
+--tokenizer Qwen/Qwen3-Coder-30B-A3B-Instruct
+--chat-template /templates/qwen3coder.jinja2
+--tensor-parallel-size 2
+--tool-call-parser qwen3_xml
+# --temp 0.7
+# --top-p 0.8
+# --top-k 20
+# --repeat-penalty 1.05
+# --min-p 0.01
 
 # -m /mnt/llm-data/huggingface/Qwen3-Qwen3-30B-A3B-Instruct-2507-UD-Q8_K_XL.gguf
 # --temp 0.7
@@ -29,24 +33,8 @@
 # --min-p 0.01
 
 # Common config
---fit-ctx 4096
---fit-target 1536
--c 95000
---no-mmap
-# --mlock
-# --mmap
---ctx-checkpoints 20
--cram 32768
--kvu
--np 1
+--enable-prefix-caching
+--kv-offloading-size 8
+--kv-offloading-backend lmcache
 --host 0.0.0.0
 --port 8000
---jinja
---no-context-shift
--fa on
--b 4096
--ub 1024
---slot-prompt-similarity 0.1
---numa numactl
--t 16
---threads-http 4
