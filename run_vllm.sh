@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export CUDA_DISABLE_PERF_BOOST=1
-# Read arguments from llama_args.sh, skipping comments and empty lines
+# Read arguments from vllm_args.sh, skipping comments and empty lines
 ARGS=()
 while IFS= read -r line; do
     # Skip comment lines (starting with #) and empty lines
@@ -10,14 +10,27 @@ while IFS= read -r line; do
         read -ra LINE_ARGS <<< "$line"
         ARGS+=("${LINE_ARGS[@]}")
     fi
-done < llama_args.sh
+done < vllm_args.sh
 
-# Run llama-server with the parsed arguments
+# Debug: Print arguments being passed (comment out in production)
+# echo "Arguments to pass to Docker:"
+# printf "'%s'\n" "${ARGS[@]}"
+
+# Run vllm with the parsed arguments
+# Use --entrypoint to ensure arguments are passed correctly
 docker run --runtime nvidia --gpus all \
-    -v ~/.cache/huggingface:/root/.cache/huggingface \
+    --rm \
+    -v /mnt/llm-data/huggingface:/root/.cache/huggingface \
     -v ./templates:/templates \
+    -v /root/.cache/vllm:/root/.cache/vllm \
+    -v /root/.cache/torch:/root/.cache/torch \
+    -v /tmp:/tmp \
+    -v /root/.triton:/root/.triton \
     --env "HF_TOKEN=$HF_TOKEN" \
-    -p 8000:8000 \
+    -e OMP_NUM_THREADS=16 \
+    --network host \
     --ipc=host \
-    vllm/vllm-openai:nightly-f1c2c20136cca6ea8798a64855eaf52ee9a42210 \
+    --entrypoint vllm \
+    vllm/vllm-openai:v0.13.0 \
+    serve \
     "${ARGS[@]}"

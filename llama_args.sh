@@ -50,3 +50,4 @@
 --numa numactl
 -t 16
 --threads-http 4
+--cache-reuse 256

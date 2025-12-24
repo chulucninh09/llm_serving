@@ -1,0 +1,12 @@
+services:
+    open-webui:
+        image: ghcr.io/open-webui/open-webui:main
+        container_name: open-webui
+        network_mode: host
+        volumes:
+            - ./data:/app/backend/data
+        environment:
+          - "ENABLE_SIGNUP=False"
+          - "PORT=3000"
+          - "WEBUI_AUTH=False"
+        restart: unless-stopped
