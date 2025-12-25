@@ -1,18 +1,12 @@
-{# Copyright 2025-present Unsloth. Apache 2.0 License. Unsloth Chat template fixes #}
-{% macro render_item_list(item_list, tag_name='required') %}
-    {%- if item_list is defined and item_list is iterable and item_list | length > 0 %}
-        {%- if tag_name %}{{- '\n<' ~ tag_name ~ '>' -}}{% endif %}
-            {{- '[' }}
-                {%- for item in item_list -%}
-                    {%- if loop.index > 1 %}{{- ", "}}{% endif -%}
-                    {%- if item is string -%}
-                        {{ "`" ~ item ~ "`" }}
-                    {%- else -%}
-                        {{ item }}
-                    {%- endif -%}
-                {%- endfor -%}
-            {{- ']' }}
-        {%- if tag_name %}{{- '</' ~ tag_name ~ '>' -}}{% endif %}
+{% macro render_extra_keys(json_dict, handled_keys) %}
+    {%- if json_dict is mapping %}
+        {%- for json_key in json_dict if json_key not in handled_keys %}
+            {%- if json_dict[json_key] is mapping or (json_dict[json_key] is sequence and json_dict[json_key] is not string) %}
+                {{- '\n<' ~ json_key ~ '>' ~ (json_dict[json_key] | tojson | safe) ~ '</' ~ json_key ~ '>' }}
+            {%- else %}
+                {{-'\n<' ~ json_key ~ '>' ~ (json_dict[json_key] | string) ~ '</' ~ json_key ~ '>' }}
+            {%- endif %}
+        {%- endfor %}
     {%- endif %}
 {% endmacro %}
 
@@ -35,48 +29,37 @@
     {%- endif %}
 {%- endif %}
 {%- if tools is iterable and tools | length > 0 %}
-    {{- "\n\nYou have access to the following functions:\n\n" }}
+    {{- "\n\n# Tools\n\nYou have access to the following functions:\n\n" }}
     {{- "<tools>" }}
     {%- for tool in tools %}
         {%- if tool.function is defined %}
             {%- set tool = tool.function %}
         {%- endif %}
         {{- "\n<function>\n<name>" ~ tool.name ~ "</name>" }}
-        {{- '\n<description>' ~ (tool.description | trim) ~ '</description>' }}
-        {{- '\n<parameters>' }}
-        {%- for param_name, param_fields in tool.parameters.properties|items %}
-            {{- '\n<parameter>' }}
-            {{- '\n<name>' ~ param_name ~ '</name>' }}
-            {%- if param_fields.type is defined %}
-                {{- '\n<type>' ~ (param_fields.type | string) ~ '</type>' }}
-            {%- endif %}
-            {%- if param_fields.description is defined %}
-                {{- '\n<description>' ~ (param_fields.description | trim) ~ '</description>' }}
-            {%- endif %}
-            {{- render_item_list(param_fields.enum, 'enum') }}
-            {%- set handled_keys = ['type', 'description', 'enum', 'required'] %}
-            {%- for json_key, json_value in param_fields|items %}
-                {%- if json_key not in handled_keys %}
-                    {%- set normed_json_key = json_key|string %}
-                    {%- if json_value is mapping %}
-                        {{- '\n<' ~ normed_json_key ~ '>' ~ (json_value | tojson | safe) ~ '</' ~ normed_json_key ~ '>' }}
-                    {%- else %}
-                        {{- '\n<' ~ normed_json_key ~ '>' ~ (json_value | string) ~ '</' ~ normed_json_key ~ '>' }}
-                    {%- endif %}
-                {%- endif %}
-            {%- endfor %}
-            {{- render_item_list(param_fields.required, 'required') }}
-            {{- '\n</parameter>' }}
-        {%- endfor %}
-        {{- render_item_list(tool.parameters.required, 'required') }}
-        {{- '\n</parameters>' }}
-        {%- if tool.return is defined %}
-            {%- if tool.return is mapping %}
-                {{- '\n<return>' ~ (tool.return | tojson | safe) ~ '</return>' }}
-            {%- else %}
-                {{- '\n<return>' ~ (tool.return | string) ~ '</return>' }}
-            {%- endif %}
+        {%- if tool.description is defined %}
+            {{- '\n<description>' ~ (tool.description | trim) ~ '</description>' }}
         {%- endif %}
+        {{- '\n<parameters>' }}
+        {%- if tool.parameters is defined and tool.parameters is mapping and tool.parameters.properties is defined and tool.parameters.properties is mapping %}
+            {%- for param_name, param_fields in tool.parameters.properties|items %}
+                {{- '\n<parameter>' }}
+                {{- '\n<name>' ~ param_name ~ '</name>' }}
+                {%- if param_fields.type is defined %}
+                    {{- '\n<type>' ~ (param_fields.type | string) ~ '</type>' }}
+                {%- endif %}
+                {%- if param_fields.description is defined %}
+                    {{- '\n<description>' ~ (param_fields.description | trim) ~ '</description>' }}
+                {%- endif %}
+                {%- set handled_keys = ['name', 'type', 'description'] %}
+                {{- render_extra_keys(param_fields, handled_keys) }}
+                {{- '\n</parameter>' }}
+            {%- endfor %}
+        {%- endif %}
+        {% set handled_keys = ['type', 'properties'] %}
+        {{- render_extra_keys(tool.parameters, handled_keys) }}
+        {{- '\n</parameters>' }}
+        {%- set handled_keys = ['type', 'name', 'description', 'parameters'] %}
+        {{- render_extra_keys(tool, handled_keys) }}
         {{- '\n</function>' }}
     {%- endfor %}
     {{- "\n</tools>" }}
@@ -103,7 +86,7 @@
             {%- if tool_call.arguments is defined %}
                 {%- for args_name, args_value in tool_call.arguments|items %}
                     {{- '<parameter=' + args_name + '>\n' }}
-                    {%- set args_value = args_value if args_value is string else args_value | string %}
+                    {%- set args_value = args_value | tojson | safe if args_value is mapping or (args_value is sequence and args_value is not string) else args_value | string %}
                     {{- args_value }}
                     {{- '\n</parameter>\n' }}
                 {%- endfor %}
@@ -132,4 +115,3 @@
 {%- if add_generation_prompt %}
     {{- '<|im_start|>assistant\n' }}
 {%- endif %}
-{# Copyright 2025-present Unsloth. Apache 2.0 License. Unsloth Chat template fixes #}
