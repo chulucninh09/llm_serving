@@ -45,15 +45,16 @@
 --disable-hybrid-kv-cache-manager
 --host 0.0.0.0
 --port 8000
---max-model-len 110000
+--max-model-len 90000
 # --async-scheduling
 --enable-chunked-prefill
---max-num-batched-tokens 8192
+--max-num-batched-tokens 4096
 # --enforce-eager
 # --distributed-executor-backend mp
---max-num-seqs 3
---gpu-memory-utilization 0.9
+--max-num-seqs 2
+--gpu-memory-utilization 0.85
 # --enable-eplb
 --enable-expert-parallel
 --enable-auto-tool-choice
 --served-model-name kCode
+--block-size 32

@@ -33,30 +33,56 @@ class LLMStressTester:
         self.results = []
         
     def generate_long_message(self, context_tokens: int) -> str:
-        """Generate a long human message to approximate context size"""
-        base_prompt = "Explain the concept of attention mechanism in transformers. Be about 500 words."
+        """Generate a long human message with random but meaningful words to prevent caching"""
+        import random
         
-        # Create a long message by repeating and expanding the base prompt
+        # List of random words to use for generating varied content
+        random_words = [
+            "the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "computer", "science",
+            "artificial", "intelligence", "machine", "learning", "deep", "neural", "network", "algorithm",
+            "data", "analysis", "statistical", "model", "prediction", "accuracy", "performance", "optimization",
+            "development", "programming", "software", "hardware", "architecture", "design", "implementation",
+            "testing", "deployment", "monitoring", "maintenance", "security", "privacy", "encryption", "decryption",
+            "database", "storage", "retrieval", "processing", "computation", "simulation", "experiment", "research",
+            "discovery", "innovation", "technology", "application", "interface", "user", "experience", "design",
+            "framework", "library", "module", "component", "integration", "compatibility", "scalability", "reliability"
+        ]
+        
+        # Create random sentences with varied content
         # Approximate 1 token = 4 characters for English text
         target_chars = context_tokens * 4
-        base_chars = len(base_prompt)
         
-        # Calculate how many times we need to repeat the base prompt
-        repetitions = target_chars // base_chars
+        # Generate random sentences using the word list
+        words = []
+        while len(' '.join(words)) < target_chars:
+            # Add a random number of words (between 1 and 10) to make it more varied
+            num_words = random.randint(1, 10)
+            for _ in range(num_words):
+                words.append(random.choice(random_words))
         
-        # Build the long message
-        long_message = base_prompt
-        for i in range(repetitions):
-            long_message += f". This is additional content to increase the context size. The attention mechanism in transformers allows the model to focus on different parts of the input sequence when generating each token. It's a crucial component that enables models to handle long-range dependencies in text. The mechanism works by computing attention scores between all positions in the sequence, allowing the model to weigh the importance of different words when generating each output token. This is particularly important for understanding context in long documents or conversations. The scaled dot-product attention is the most common variant used in transformer architectures. It computes attention weights by taking the dot product of query and key vectors, scaling by the square root of the key dimension, and applying softmax to obtain probability distributions. These probabilities are then used to weight the value vectors to produce the final output. This attention mechanism is what makes transformers so effective at understanding relationships between words regardless of their distance in the sequence."
+        # Join words into sentences with proper punctuation
+        sentence_parts = []
+        current_sentence = []
+        for i, word in enumerate(words):
+            current_sentence.append(word)
+            # Add period every 10-20 words to create natural sentences
+            if (i + 1) % random.randint(10, 20) == 0:
+                sentence_parts.append(' '.join(current_sentence) + '.')
+                current_sentence = []
         
-        # Trim to approximate target length
-        trimmed_message = long_message[:target_chars]
+        # Add any remaining words to a final sentence
+        if current_sentence:
+            sentence_parts.append(' '.join(current_sentence) + '.')
         
-        # Add a safety check to prevent extremely long messages
-        if len(trimmed_message) > 100000:
-            trimmed_message = trimmed_message[:100000]
+        # Combine sentences with some structure
+        structured_text = "User query: " + ' '.join(sentence_parts[:len(sentence_parts)//2]) + \
+                         "\n\nAssistant response: " + ' '.join(sentence_parts[len(sentence_parts)//2:])
+        
+        # Trim to exact target character count
+        if len(structured_text) > target_chars:
+            structured_text = structured_text[:target_chars]
             
-        return trimmed_message
+        return structured_text
     
     async def send_request(self, session: aiohttp.ClientSession, request_id: int) -> Dict:
         """Send a single request and return timing and token information"""
@@ -129,13 +155,6 @@ class LLMStressTester:
     
     async def run_concurrent_requests(self) -> List[Dict]:
         """Run concurrent requests with semaphore for limiting concurrency"""
-        # Create a semaphore to limit concurrent requests
-        semaphore = asyncio.Semaphore(self.concurrent_requests)
-        
-        async def limited_send_request(request_id):
-            async with semaphore:
-                return await self.send_request(session, request_id)
-        
         # Create session with connection pooling
         connector = aiohttp.TCPConnector(limit=self.concurrent_requests)
         timeout = aiohttp.ClientTimeout(total=self.request_timeout)
@@ -144,6 +163,13 @@ class LLMStressTester:
             connector=connector, 
             timeout=timeout
         ) as session:
+            # Create a semaphore to limit concurrent requests
+            semaphore = asyncio.Semaphore(self.concurrent_requests)
+            
+            async def limited_send_request(request_id):
+                async with semaphore:
+                    return await self.send_request(session, request_id)
+            
             logger.info("Configuration:")
             logger.info(f"  Server URL: {self.server_url}")
             logger.info(f"  Concurrent Requests: {self.concurrent_requests}")
