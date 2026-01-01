@@ -10,7 +10,7 @@ while IFS= read -r line; do
         read -ra LINE_ARGS <<< "$line"
         ARGS+=("${LINE_ARGS[@]}")
     fi
-done < vllm_args.sh
+done < vllm_args_embedding.sh
 
 # Debug: Print arguments being passed (comment out in production)
 # echo "Arguments to pass to Docker:"
@@ -18,29 +18,8 @@ done < vllm_args.sh
 
 # Run vllm with the parsed arguments
 # Use --entrypoint to ensure arguments are passed correctly
-# docker run --runtime nvidia --gpus all \
-#     --rm \
-#     -v /mnt/llm-data/huggingface:/root/.cache/huggingface \
-#     -v ./templates:/templates \
-#     -v /mnt/llm-data/.cache/vllm:/root/.cache/vllm \
-#     -v /mnt/llm-data/.cache/torch:/root/.cache/torch \
-#     -v /mnt/llm-data/tmp:/tmp \
-#     -v /mnt/llm-data/root/.triton:/root/.triton \
-#     --env "HF_TOKEN=$HF_TOKEN" \
-#     --env "PYTHONHASHSEED=0" \
-#     -e OMP_NUM_THREADS=16 \
-#     --network host \
-#     --ipc=host \
-#     --entrypoint vllm \
-#     vllm/vllm-openai:nightly-96142f209453a381fcaf9d9d010bbf8711119a77 \
-#     serve \
-#     "${ARGS[@]}"
-
 OMP_NUM_THREADS=8
 PYTHONHASHSEED=0
-LMCACHE_NUMA_MODE=auto
 uv run vllm serve \
     --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm"}' \
-    --kv-transfer-config \
-    '{"numa_mode":"auto", "kv_role":"kv_both"}' \
     "${ARGS[@]}"

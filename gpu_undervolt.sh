@@ -1,3 +1,7 @@
+# Disable power limit for mainboard
+ipmitool dcmi power deactivate
+ipmitool dcmi power get_limit
+
 # Generate basic config
 nvidia-xconfig
 
@@ -16,23 +20,23 @@ Section "Device"
 EndSection
 
 # Set compute mode
-nvidia-smi --gom=1
-
-# Limit clock
-nvidia-smi -pm 1
-nvidia-smi -lgc 0,1100
-nvidia-smi -lmc 0,7000
-nvidia-smi -pl 200
-
 
 # Overclock for undervolt
 export DISPLAY=:0
-nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=220
-nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=220
+nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=200
+nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=230
 
-nvidia-settings -a [gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels=700
-nvidia-settings -a [gpu:1]/GPUMemoryTransferRateOffsetAllPerformanceLevels=700
+# Memory uses fixed voltage => underclock to lower power consumption
+nvidia-settings -a [gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels=-2000
+nvidia-settings -a [gpu:1]/GPUMemoryTransferRateOffsetAllPerformanceLevels=-2000
 
+# Limit clock
+nvidia-smi -pm 1
+nvidia-smi --gom=1
+nvidia-smi -lgc 0,1600
+nvidia-smi -lmc 0,8501
+nvidia-smi -pl 250
 
+# Monitor script
 watch -n0.5 "nvidia-smi -i 0 -q -d POWER,CLOCK"
 watch -n0.5 "nvidia-smi -i 1 -q -d POWER,CLOCK"

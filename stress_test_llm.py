@@ -12,7 +12,7 @@ import time
 import aiohttp
 import argparse
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,16 +21,20 @@ logger = logging.getLogger(__name__)
 class LLMStressTester:
     def __init__(self, server_url: str, concurrent_requests: int = 4, 
                  total_requests: int = 100, request_timeout: int = 30,
-                 context_size: int = 40000, max_tokens: int = 150):
+                 context_size: int = 40000, max_tokens: int = 150,
+                 mode: Optional[str] = None, fixed_prefix: Optional[str] = None):
         self.server_url = server_url
         self.concurrent_requests = concurrent_requests
         self.total_requests = total_requests
         self.request_timeout = request_timeout
         self.context_size = context_size
         self.max_tokens = max_tokens
+        self.mode = mode  # 'pp' for prompt processing, 'tg' for token generation
+        self.fixed_prefix = fixed_prefix  # Fixed prefix for token generation mode
         
         # Store results
         self.results = []
+        self.cache_warmed = False  # Track if cache has been warmed for -tg mode
         
     def generate_long_message(self, context_tokens: int) -> str:
         """Generate a long human message with random but meaningful words to prevent caching"""
@@ -84,12 +88,52 @@ class LLMStressTester:
             
         return structured_text
     
+    async def send_preflight_request(self, session: aiohttp.ClientSession) -> bool:
+        """Send pre-flight request to warm up cache for token generation mode"""
+        if self.cache_warmed:
+            return True
+            
+        try:
+            payload = {
+                "model": "kCode",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": self.fixed_prefix
+                    }
+                ],
+                "max_tokens": 1,  # Just need to process the prompt
+                "temperature": 0.7
+            }
+            
+            async with session.post(self.server_url, json=payload, timeout=aiohttp.ClientTimeout(total=self.request_timeout)) as response:
+                await response.json()
+                self.cache_warmed = True
+                logger.info("Pre-flight cache warming request completed")
+                return True
+        except Exception as e:
+            logger.warning(f"Pre-flight request failed: {str(e)}, continuing anyway...")
+            return False
+    
     async def send_request(self, session: aiohttp.ClientSession, request_id: int) -> Dict:
         """Send a single request and return timing and token information"""
         start_time = time.time()
         
-        # Generate a long message to approximate context size
-        long_message = self.generate_long_message(self.context_size)
+        # Handle different modes
+        if self.mode == 'pp':
+            # Prompt processing mode: randomize every request, max_tokens=1
+            long_message = self.generate_long_message(self.context_size)
+            max_tokens = 1
+        elif self.mode == 'tg':
+            # Token generation mode: use fixed prefix (cache should already be warmed)
+            if self.fixed_prefix is None:
+                raise ValueError("fixed_prefix must be provided for token generation mode (-tg)")
+            long_message = self.fixed_prefix
+            max_tokens = self.max_tokens
+        else:
+            # Mixed mode (default): randomize prefix like pp, use full max_tokens like tg
+            long_message = self.generate_long_message(self.context_size)
+            max_tokens = self.max_tokens
         
         # Prepare request payload
         payload = {
@@ -100,7 +144,7 @@ class LLMStressTester:
                     "content": long_message
                 }
             ],
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens,
             "temperature": 0.7
         }
         
@@ -117,8 +161,16 @@ class LLMStressTester:
                 end_time = time.time()
                 duration = end_time - start_time
                 
-                # Calculate tokens per second
-                tokens_per_sec = completion_tokens / duration if duration > 0 else 0
+                # Calculate tokens per second based on mode
+                if self.mode == 'pp':
+                    # Prompt processing: calculate based on prompt tokens
+                    tokens_per_sec = prompt_tokens / duration if duration > 0 else 0
+                elif self.mode == 'tg':
+                    # Token generation: calculate based on completion tokens (generation speed)
+                    tokens_per_sec = completion_tokens / duration if duration > 0 else 0
+                else:
+                    # Mixed mode: calculate based on completion tokens (generation speed with randomized prefix)
+                    tokens_per_sec = completion_tokens / duration if duration > 0 else 0
                 
                 result = {
                     "request_id": request_id,
@@ -130,7 +182,8 @@ class LLMStressTester:
                     "tokens_per_sec": tokens_per_sec
                 }
                 
-                logger.info(f"Request {request_id}: SUCCESS "
+                mode_label = "Prompt Processing" if self.mode == 'pp' else ("Token Generation" if self.mode == 'tg' else "Mixed")
+                logger.info(f"Request {request_id}: SUCCESS [{mode_label}] "
                            f"(Prompt: {prompt_tokens}, Completion: {completion_tokens}, "
                            f"Total: {total_tokens}, Time: {duration:.3f}s, Tok/sec: {tokens_per_sec:.2f})")
                 
@@ -172,12 +225,26 @@ class LLMStressTester:
             
             logger.info("Configuration:")
             logger.info(f"  Server URL: {self.server_url}")
+            logger.info(f"  Mode: {self.mode.upper() if self.mode else 'MIXED'}")
             logger.info(f"  Concurrent Requests: {self.concurrent_requests}")
             logger.info(f"  Total Requests: {self.total_requests}")
             logger.info(f"  Context Size: ~{self.context_size} tokens")
-            logger.info(f"  Max Tokens per Request: {self.max_tokens}")
+            if self.mode == 'pp':
+                logger.info(f"  Max Tokens per Request: 1 (Prompt Processing Mode)")
+            else:
+                logger.info(f"  Max Tokens per Request: {self.max_tokens}")
+            if self.mode == 'tg' and self.fixed_prefix:
+                logger.info(f"  Fixed Prefix: {self.fixed_prefix[:100]}..." if len(self.fixed_prefix) > 100 else f"  Fixed Prefix: {self.fixed_prefix}")
+            elif self.mode != 'tg' and self.mode != 'pp':
+                logger.info(f"  Prefix: Randomized (Mixed Mode)")
             logger.info(f"  Request Timeout: {self.request_timeout} seconds")
             logger.info("")
+            
+            # For token generation mode, send pre-flight request first to warm cache
+            if self.mode == 'tg' and not self.cache_warmed:
+                logger.info("Sending pre-flight request to warm cache...")
+                await self.send_preflight_request(session)
+            
             logger.info(f"Sending {self.concurrent_requests} concurrent requests, {self.total_requests} total...")
             
             # Create tasks for all requests
@@ -240,10 +307,17 @@ class LLMStressTester:
         
         print("\nDetailed Token Statistics:")
         print("--------------------------")
+        mode_label = "Prompt Processing" if self.mode == 'pp' else ("Token Generation" if self.mode == 'tg' else "Mixed")
+        print(f"Mode: {mode_label}")
         print(f"Average Prompt Tokens: {stats['average_prompt_tokens']:.0f}")
         print(f"Average Completion Tokens: {stats['average_completion_tokens']:.0f}")
         print(f"Average Total Tokens: {stats['average_total_tokens']:.0f}")
-        print(f"Average Tokens/Second: {stats['average_tokens_per_sec']:.2f}")
+        if self.mode == 'pp':
+            print(f"Average Prompt Processing Tokens/Second: {stats['average_tokens_per_sec']:.2f}")
+        elif self.mode == 'tg':
+            print(f"Average Generation Tokens/Second: {stats['average_tokens_per_sec']:.2f}")
+        else:
+            print(f"Average Generation Tokens/Second (Mixed Mode): {stats['average_tokens_per_sec']:.2f}")
         print(f"Min Prompt Tokens: {stats['min_prompt_tokens']}")
         print(f"Max Prompt Tokens: {stats['max_prompt_tokens']}")
         print(f"Min Completion Tokens: {stats['min_completion_tokens']}")
@@ -274,18 +348,48 @@ async def main():
     parser = argparse.ArgumentParser(description='LLM Stress Test Script')
     parser.add_argument('--server-url', default='http://localhost:8000/v1/chat/completions',
                        help='Server URL (default: http://localhost:8000/v1/chat/completions)')
-    parser.add_argument('--concurrent-requests', type=int, default=3,
+    parser.add_argument('-pp', '--prompt-processing', action='store_true',
+                       help='Prompt processing mode: count prompt processing tok/sec, max_tokens=1, randomized requests')
+    parser.add_argument('-tg', '--token-generation', action='store_true',
+                       help='Token generation mode: use fixed prefix, pre-flight cache, measure generation speed')
+    parser.add_argument('--concurrent-requests', type=int, default=4,
                        help='Number of concurrent requests (default: 3)')
-    parser.add_argument('--total-requests', type=int, default=50,
+    parser.add_argument('--total-requests', type=int, default=40,
                        help='Total number of requests to send (default: 50)')
     parser.add_argument('--request-timeout', type=int, default=180,
                        help='Request timeout in seconds (default: 180)')
     parser.add_argument('--context-size', type=int, default=6000,
                        help='Desired context window in tokens (default: 6000)')
     parser.add_argument('--max-tokens', type=int, default=350,
-                       help='Maximum tokens to generate per request (default: 350)')
+                       help='Maximum tokens to generate per request (default: 350, ignored in -pp mode)')
+    parser.add_argument('--fixed-prefix', type=str, default=None,
+                       help='Fixed prefix for token generation mode (-tg). If not provided, generates one based on context-size')
     
     args = parser.parse_args()
+    
+    # Determine mode
+    mode = None
+    fixed_prefix = args.fixed_prefix
+    
+    if args.prompt_processing and args.token_generation:
+        logger.error("Cannot use both -pp and -tg modes simultaneously")
+        return
+    
+    if args.prompt_processing:
+        mode = 'pp'
+    elif args.token_generation:
+        mode = 'tg'
+        # Generate fixed prefix if not provided
+        if fixed_prefix is None:
+            tester_temp = LLMStressTester(
+                server_url=args.server_url,
+                context_size=args.context_size
+            )
+            fixed_prefix = tester_temp.generate_long_message(args.context_size)
+            logger.info(f"Generated fixed prefix of ~{args.context_size} tokens for token generation mode")
+    else:
+        # Default to mixed mode: randomized prefix with full max_tokens
+        mode = 'mixed'
     
     # Create tester instance
     tester = LLMStressTester(
@@ -294,7 +398,9 @@ async def main():
         total_requests=args.total_requests,
         request_timeout=args.request_timeout,
         context_size=args.context_size,
-        max_tokens=args.max_tokens
+        max_tokens=args.max_tokens,
+        mode=mode,
+        fixed_prefix=fixed_prefix
     )
     
     # Run the stress test

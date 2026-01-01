@@ -3,3 +3,5 @@ cuda-keyring_1.1-1_all.deb
 .env
 data/
 searxng/
+__pycache__/
+cufile.log
