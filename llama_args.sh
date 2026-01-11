@@ -1,5 +1,5 @@
 # -m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf
--m /mnt/llm-data/huggingface/Qwen3-Coder-30B-A3B-Instruct-UD-Q6_K_XL.gguf
+-m /mnt/llm-data/huggingface/hub/models--unsloth--Qwen3-Coder-30B-A3B-Instruct-1M-GGUF/snapshots/4ea9030716b3dc671dc0aafaedfb7c570babb60f/Qwen3-Coder-30B-A3B-Instruct-1M-UD-Q6_K_XL.gguf
 --temp 0.7
 --top-p 0.8
 --top-k 20
@@ -29,16 +29,16 @@
 # --min-p 0.01
 
 # Common config
---fit-ctx 4096
---fit-target 1536
--c 95000
+--fit-ctx 80000
+--fit-target 1792
+-fit on
 --no-mmap
 # --mlock
 # --mmap
 --ctx-checkpoints 20
 -cram 32768
 -kvu
--np 1
+-np 2
 --host 0.0.0.0
 --port 8000
 --jinja
@@ -49,5 +49,6 @@
 --slot-prompt-similarity 0.1
 --numa numactl
 -t 16
---threads-http 4
+--threads-http 8
 --cache-reuse 256
+--alias kCode

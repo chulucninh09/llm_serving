@@ -36,11 +36,11 @@ done < vllm_args.sh
 #     serve \
 #     "${ARGS[@]}"
 
-OMP_NUM_THREADS=8
-PYTHONHASHSEED=0
-LMCACHE_NUMA_MODE=auto
+PYTHONHASHSEED=1 \
+LMCACHE_CONFIG_FILE=$PWD/lmcache.yaml \
+VLLM_SKIP_P2P_CHECK=1 \
+LMCACHE_LOG_LEVEL=WARNING \
 uv run vllm serve \
-    --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm"}' \
-    --kv-transfer-config \
-    '{"numa_mode":"auto", "kv_role":"kv_both"}' \
+    --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm_llm"}' \
     "${ARGS[@]}"
+    # --kv-transfer-config '{"kv_connector":"LMCacheConnectorV1Dynamic","kv_role":"kv_both","kv_connector_module_path":"lmcache.integration.vllm.lmcache_connector_v1"}' \

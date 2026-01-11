@@ -7,3 +7,9 @@
 [submodule "vllm"]
 	path = vllm
 	url = https://github.com/vllm-project/vllm.git
+[submodule "ragflow"]
+	path = ragflow
+	url = https://github.com/infiniflow/ragflow.git
+[submodule "ik_llama"]
+	path = ik_llama
+	url = https://github.com/ikawrakow/ik_llama.cpp.git

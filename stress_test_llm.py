@@ -141,7 +141,7 @@ class LLMStressTester:
             "messages": [
                 {
                     "role": "user",
-                    "content": long_message
+                    "content": "Repeat after me x 1000 times: \n" + long_message
                 }
             ],
             "max_tokens": max_tokens,
@@ -352,16 +352,16 @@ async def main():
                        help='Prompt processing mode: count prompt processing tok/sec, max_tokens=1, randomized requests')
     parser.add_argument('-tg', '--token-generation', action='store_true',
                        help='Token generation mode: use fixed prefix, pre-flight cache, measure generation speed')
-    parser.add_argument('--concurrent-requests', type=int, default=4,
-                       help='Number of concurrent requests (default: 3)')
-    parser.add_argument('--total-requests', type=int, default=40,
-                       help='Total number of requests to send (default: 50)')
+    parser.add_argument('--concurrent-requests', type=int, default=6,
+                       help='Number of concurrent requests (default: 6)')
+    parser.add_argument('--total-requests', type=int, default=100,
+                       help='Total number of requests to send (default: 100)')
     parser.add_argument('--request-timeout', type=int, default=180,
                        help='Request timeout in seconds (default: 180)')
-    parser.add_argument('--context-size', type=int, default=6000,
-                       help='Desired context window in tokens (default: 6000)')
-    parser.add_argument('--max-tokens', type=int, default=350,
-                       help='Maximum tokens to generate per request (default: 350, ignored in -pp mode)')
+    parser.add_argument('--context-size', type=int, default=70000,
+                       help='Desired context window in tokens (default: 70000)')
+    parser.add_argument('--max-tokens', type=int, default=2000,
+                       help='Maximum tokens to generate per request (default: 2000, ignored in -pp mode)')
     parser.add_argument('--fixed-prefix', type=str, default=None,
                        help='Fixed prefix for token generation mode (-tg). If not provided, generates one based on context-size')
     
@@ -385,7 +385,7 @@ async def main():
                 server_url=args.server_url,
                 context_size=args.context_size
             )
-            fixed_prefix = tester_temp.generate_long_message(args.context_size)
+            fixed_prefix = "Repeat after me x 1000 times: \n" + tester_temp.generate_long_message(args.context_size)
             logger.info(f"Generated fixed prefix of ~{args.context_size} tokens for token generation mode")
     else:
         # Default to mixed mode: randomized prefix with full max_tokens
