@@ -1,16 +1,14 @@
 #!/bin/bash
 
 export CUDA_DISABLE_PERF_BOOST=1
-# Read arguments from vllm_args.sh, skipping comments and empty lines
+
+# Source the argument parser
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/parse_args.sh"
+
+# Read arguments from vllm_args.sh
 ARGS=()
-while IFS= read -r line; do
-    # Skip comment lines (starting with #) and empty lines
-    if [[ ! "$line" =~ ^[[:space:]]*# ]] && [[ -n "${line// }" ]]; then
-        # Split the line into arguments and add them to ARGS array
-        read -ra LINE_ARGS <<< "$line"
-        ARGS+=("${LINE_ARGS[@]}")
-    fi
-done < vllm_args.sh
+parse_args_file "vllm_args.sh" ARGS
 
 # Debug: Print arguments being passed (comment out in production)
 # echo "Arguments to pass to Docker:"
@@ -41,6 +39,8 @@ LMCACHE_CONFIG_FILE=$PWD/lmcache.yaml \
 VLLM_SKIP_P2P_CHECK=1 \
 LMCACHE_LOG_LEVEL=WARNING \
 uv run vllm serve \
-    --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm_llm"}' \
     "${ARGS[@]}"
+    # Note: --compilation-config disabled when using EAGLE3 with expert parallelism
+    # due to incompatibility with torch.compile. Uncomment below if not using EAGLE3:
+    # --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm_llm"}'
     # --kv-transfer-config '{"kv_connector":"LMCacheConnectorV1Dynamic","kv_role":"kv_both","kv_connector_module_path":"lmcache.integration.vllm.lmcache_connector_v1"}' \

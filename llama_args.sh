@@ -5,6 +5,8 @@
 --top-k 20
 --repeat-penalty 1.05
 --min-p 0.01
+-ngl 999
+--chat-template-file templates/qwen3coder.jinja2
 
 # -m /mnt/llm-data/huggingface/Qwen3-Qwen3-30B-A3B-Instruct-2507-UD-Q8_K_XL.gguf
 # --temp 0.7
@@ -29,16 +31,18 @@
 # --min-p 0.01
 
 # Common config
---fit-ctx 80000
---fit-target 1792
--fit on
+# --fit-ctx 80000
+# --fit-target 1792
+-fit off
+-c 80000
 --no-mmap
+-sm row
 # --mlock
 # --mmap
 --ctx-checkpoints 20
 -cram 32768
 -kvu
--np 2
+-np -1
 --host 0.0.0.0
 --port 8000
 --jinja
@@ -52,3 +56,5 @@
 --threads-http 8
 --cache-reuse 256
 --alias kCode
+--cpu-strict 1
+--slot-save-path ./.slots

@@ -1,0 +1,41 @@
+[1768147377] llama_init_from_gpt_params: setting dry_penalty_last_n to ctx_size = 85248
+[1768147377] warming up the model with an empty run
+[1768147473] Preserved token: 151667
+[1768147473] Preserved token: 151668
+[1768147473] Preserved token: 151657
+[1768147473] Preserved token: 151658
+[1768147473] Not preserved because more than 1 token: <function
+[1768147473] Not preserved because more than 1 token: <tools>
+[1768147473] Not preserved because more than 1 token: </tools>
+[1768147473] Not preserved because more than 1 token: <response>
+[1768147473] Not preserved because more than 1 token: </response>
+[1768147473] Not preserved because more than 1 token: <function_call>
+[1768147473] Not preserved because more than 1 token: </function_call>
+[1768147473] Not preserved because more than 1 token: <json>
+[1768147473] Not preserved because more than 1 token: </json>
+[1768147473] Not preserved because more than 1 token: <JSON>
+[1768147473] Not preserved because more than 1 token: </JSON>
+[1768147473] Preserved token: 73594
+[1768147473] Not preserved because more than 1 token: ```json
+[1768147473] Not preserved because more than 1 token: ```xml
+[1768147473] Grammar trigger word: `<function=end_turn>`
+[1768147473] Grammar trigger word: `<function=list_todos>`
+[1768147473] Grammar trigger word: `<function=list_incomplete_todos>`
+[1768147473] Grammar trigger word: `<function=list_completed_todos>`
+[1768147473] Grammar trigger word: `<function=read_todo>`
+[1768147473] Grammar trigger word: `<function=add_todo>`
+[1768147473] Grammar trigger word: `<function=update_todo>`
+[1768147473] Grammar trigger word: `<function=finish_todo>`
+[1768147473] Grammar trigger word: `<function=delete_todo>`
+[1768147473] Grammar trigger word: `<function=fail_todo>`
+[1768147767] Resampling because token 2102: 'title' does not meet grammar rules
+[1768147778] Parsed partial JSON: {"name":"add_todo","arguments":{"id":"check_existing_features","goal":{"area":"EXPLORE","content":"Check if existing Feature artifacts exist in the codebase."},"title":"Check existing Feature artifacts","priority":0}} (json_healing_marker: )
+[1768147778] Cleaned up JSON {"name":"add_todo","arguments":{"id":"check_existing_features","goal":{"area":"EXPLORE","content":"Check if existing Feature artifacts exist in the codebase."},"title":"Check existing Feature artifacts","priority":0}} to {"name":"add_todo","arguments":"{\"id\":\"check_existing_features\",\"goal\":{\"area\":\"EXPLORE\",\"content\":\"Check if existing Feature artifacts exist in the codebase.\"},\"title\":\"Check existing Feature artifacts\",\"priority\":0}"} (json_healing_marker : '')
+[1768147778] Parsed partial JSON: {"name":"add_todo","arguments":{"id":"create_features","goal":{"area":"DOCUMENTING","content":"Create new Feature artifacts where none exist."},"title":"Create missing Feature artifacts","priority":1}} (json_healing_marker: )
+[1768147778] Cleaned up JSON {"name":"add_todo","arguments":{"id":"create_features","goal":{"area":"DOCUMENTING","content":"Create new Feature artifacts where none exist."},"title":"Create missing Feature artifacts","priority":1}} to {"name":"add_todo","arguments":"{\"id\":\"create_features\",\"goal\":{\"area\":\"DOCUMENTING\",\"content\":\"Create new Feature artifacts where none exist.\"},\"title\":\"Create missing Feature artifacts\",\"priority\":1}"} (json_healing_marker : '')
+[1768147778] Parsed partial JSON: {"name":"add_todo","arguments":{"id":"update_features","goal":{"area":"DOCUMENTING","content":"Update existing Feature artifacts with missing data."},"title":"Update Feature artifacts","priority":2}} (json_healing_marker: )
+[1768147778] Cleaned up JSON {"name":"add_todo","arguments":{"id":"update_features","goal":{"area":"DOCUMENTING","content":"Update existing Feature artifacts with missing data."},"title":"Update Feature artifacts","priority":2}} to {"name":"add_todo","arguments":"{\"id\":\"update_features\",\"goal\":{\"area\":\"DOCUMENTING\",\"content\":\"Update existing Feature artifacts with missing data.\"},\"title\":\"Update Feature artifacts\",\"priority\":2}"} (json_healing_marker : '')
+[1768147778] Parsed partial JSON: {"name":"add_todo","arguments":{"id":"ensure_fields_filled","goal":{"area":"DOCUMENTING","content":"Verify and fill all required fields in Feature artifacts."},"title":"Ensure required fields are filled","priority":3}} (json_healing_marker: )
+[1768147778] Cleaned up JSON {"name":"add_todo","arguments":{"id":"ensure_fields_filled","goal":{"area":"DOCUMENTING","content":"Verify and fill all required fields in Feature artifacts."},"title":"Ensure required fields are filled","priority":3}} to {"name":"add_todo","arguments":"{\"id\":\"ensure_fields_filled\",\"goal\":{\"area\":\"DOCUMENTING\",\"content\":\"Verify and fill all required fields in Feature artifacts.\"},\"title\":\"Ensure required fields are filled\",\"priority\":3}"} (json_healing_marker : '')
+[1768147778] Parsed partial JSON: {"name":"end_turn","arguments":{"summary":"Planned 4 todos to generate Feature artifacts: Check existence, create if missing, update existing, ensure field completeness."}} (json_healing_marker: )
+[1768147778] Cleaned up JSON {"name":"end_turn","arguments":{"summary":"Planned 4 todos to generate Feature artifacts: Check existence, create if missing, update existing, ensure field completeness."}} to {"name":"end_turn","arguments":"{\"summary\":\"Planned 4 todos to generate Feature artifacts: Check existence, create if missing, update existing, ensure field completeness.\"}"} (json_healing_marker : '')

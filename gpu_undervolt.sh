@@ -32,7 +32,6 @@ nvidia-settings -a [gpu:1]/GPUMemoryTransferRateOffsetAllPerformanceLevels=-2000
 
 # Limit clock
 nvidia-smi -pm 1
-nvidia-smi --gom=1
 nvidia-smi -i 0 -lgc 0,1200
 nvidia-smi -i 1 -lgc 0,1200
 nvidia-smi -lmc 0,8501

@@ -3,7 +3,8 @@
 --chat-template templates/qwen3coder.jinja2
 --tool-call-parser qwen3_coder
 --enable-expert-parallel
---max-model-len 85000
+--max-model-len 80000
+# --speculative-config '{"model": "xinjiahui/Qwen3-Coder-30B-A3B-Instruct-FP8-EAGLE3", "num_speculative_tokens": 3, "method": "eagle3", "draft_tensor_parallel_size": 2}'
 
 # --model /mnt/llm-data/huggingface/hub/models--unsloth--Qwen3-Coder-30B-A3B-Instruct-1M-GGUF/snapshots/4ea9030716b3dc671dc0aafaedfb7c570babb60f/Qwen3-Coder-30B-A3B-Instruct-1M-UD-Q6_K_XL.gguf
 # --tokenizer Qwen/Qwen3-Coder-30B-A3B-Instruct
@@ -76,7 +77,7 @@
 --max-num-seqs 4
 --enable-chunked-prefill
 --long-prefill-token-threshold 4096
---gpu-memory-utilization 0.83
+--gpu-memory-utilization 0.81
 --enable-auto-tool-choice
 --served-model-name kCode
 --async-scheduling
@@ -86,3 +87,4 @@
 --disable-cascade-attn
 --block-size 32
 --disable-sliding-window
+--kv-transfer-config '{"kv_connector":"LMCacheConnectorV1Dynamic","kv_role":"kv_both","kv_connector_module_path":"lmcache.integration.vllm.lmcache_connector_v1"}'

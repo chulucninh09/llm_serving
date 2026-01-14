@@ -21,5 +21,4 @@ done < vllm_args_embedding.sh
 OMP_NUM_THREADS=8
 PYTHONHASHSEED=0
 uv run vllm serve \
-    --compilation-config '{"cache_dir": "/mnt/llm-data/.cache/vllm_embedding"}' \
     "${ARGS[@]}"

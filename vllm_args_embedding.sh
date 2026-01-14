@@ -8,6 +8,6 @@
 --max-model-len 8192
 --max-num-seqs 16
 --max-cudagraph-capture-size 16
---gpu-memory-utilization 0.06
+--gpu-memory-utilization 0.05
 --served-model-name kCodeEmbedding
 --trust-remote-code
