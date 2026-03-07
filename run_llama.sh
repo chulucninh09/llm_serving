@@ -1,17 +1,13 @@
 #!/bin/bash
 
-export CUDA_DISABLE_PERF_BOOST=1
-# Read arguments from llama_args.sh, skipping comments and empty lines
-ARGS=()
-while IFS= read -r line; do
-    # Skip comment lines (starting with #) and empty lines
-    if [[ ! "$line" =~ ^[[:space:]]*# ]] && [[ -n "${line// }" ]]; then
-        # Split the line into arguments and add them to ARGS array
-        read -ra LINE_ARGS <<< "$line"
-        ARGS+=("${LINE_ARGS[@]}")
-    fi
-done < llama_args.sh
+# Source the argument parser
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/parse_args.sh"
 
+# Read arguments from vllm_args.sh
+ARGS=()
+parse_args_file "llama_args.sh" ARGS
+
+export GGML_CUDA_GRAPH_OPT=1
 # Run llama-server with the parsed arguments
 ./llama.cpp/build/bin/llama-server "${ARGS[@]}"
-

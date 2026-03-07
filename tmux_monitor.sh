@@ -20,8 +20,8 @@ tmux split-window -h -t "$SESSION_NAME:0.0"
 # Split the right pane (pane 1) horizontally into 2 panes (top and bottom)
 tmux split-window -v -t "$SESSION_NAME:0.2"
 
-tmux send-keys -t "$SESSION_NAME:0.0" "clear; while true; do tput cup 0 0; nvidia-smi -i 0 -q -d POWER,CLOCK; sleep 0.01; done" Enter
-tmux send-keys -t "$SESSION_NAME:0.1" "clear; while true; do tput cup 0 0; nvidia-smi -i 1 -q -d POWER,CLOCK; sleep 0.01; done" Enter
+tmux send-keys -t "$SESSION_NAME:0.0" 'watch -n0.02 "nvidia-smi -i 0 -q -d POWER,CLOCK"' Enter
+tmux send-keys -t "$SESSION_NAME:0.1" 'watch -n0.02 "nvidia-smi -i 1 -q -d POWER,CLOCK"' Enter
 tmux send-keys -t "$SESSION_NAME:0.2" "nvtop" Enter
 tmux send-keys -t "$SESSION_NAME:0.3" "glances" Enter
 

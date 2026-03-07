@@ -12,17 +12,73 @@ import time
 import aiohttp
 import argparse
 import logging
+import multiprocessing
 from typing import Dict, List, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def _generate_long_message_worker(args):
+    """Worker function for multiprocessing to generate a single long message"""
+    context_tokens, seed = args
+    import random
+    random.seed(seed)  # Use seed for reproducibility if needed
+    
+    # List of random words to use for generating varied content
+    random_words = [
+        "the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "computer", "science",
+        "artificial", "intelligence", "machine", "learning", "deep", "neural", "network", "algorithm",
+        "data", "analysis", "statistical", "model", "prediction", "accuracy", "performance", "optimization",
+        "development", "programming", "software", "hardware", "architecture", "design", "implementation",
+        "testing", "deployment", "monitoring", "maintenance", "security", "privacy", "encryption", "decryption",
+        "database", "storage", "retrieval", "processing", "computation", "simulation", "experiment", "research",
+        "discovery", "innovation", "technology", "application", "interface", "user", "experience", "design",
+        "framework", "library", "module", "component", "integration", "compatibility", "scalability", "reliability"
+    ]
+    
+    # Create random sentences with varied content
+    # Approximate 1 token = 4 characters for English text
+    target_chars = context_tokens * 4
+    
+    # Generate random sentences using the word list
+    words = []
+    while len(' '.join(words)) < target_chars:
+        # Add a random number of words (between 1 and 10) to make it more varied
+        num_words = random.randint(1, 10)
+        for _ in range(num_words):
+            words.append(random.choice(random_words))
+    
+    # Join words into sentences with proper punctuation
+    sentence_parts = []
+    current_sentence = []
+    for i, word in enumerate(words):
+        current_sentence.append(word)
+        # Add period every 10-20 words to create natural sentences
+        if (i + 1) % random.randint(10, 20) == 0:
+            sentence_parts.append(' '.join(current_sentence) + '.')
+            current_sentence = []
+    
+    # Add any remaining words to a final sentence
+    if current_sentence:
+        sentence_parts.append(' '.join(current_sentence) + '.')
+    
+    # Combine sentences with some structure
+    structured_text = "User query: " + ' '.join(sentence_parts[:len(sentence_parts)//2]) + \
+                     "\n\nAssistant response: " + ' '.join(sentence_parts[len(sentence_parts)//2:])
+    
+    # Trim to exact target character count
+    if len(structured_text) > target_chars:
+        structured_text = structured_text[:target_chars]
+        
+    return structured_text
+
 class LLMStressTester:
     def __init__(self, server_url: str, concurrent_requests: int = 4, 
                  total_requests: int = 100, request_timeout: int = 30,
                  context_size: int = 40000, max_tokens: int = 150,
-                 mode: Optional[str] = None, fixed_prefix: Optional[str] = None):
+                 mode: Optional[str] = None, fixed_prefix: Optional[str] = None,
+                 num_workers: Optional[int] = None):
         self.server_url = server_url
         self.concurrent_requests = concurrent_requests
         self.total_requests = total_requests
@@ -31,10 +87,12 @@ class LLMStressTester:
         self.max_tokens = max_tokens
         self.mode = mode  # 'pp' for prompt processing, 'tg' for token generation
         self.fixed_prefix = fixed_prefix  # Fixed prefix for token generation mode
+        self.num_workers = num_workers  # Number of worker processes for message generation
         
         # Store results
         self.results = []
         self.cache_warmed = False  # Track if cache has been warmed for -tg mode
+        self.pre_generated_messages = []  # Store pre-generated random messages
         
     def generate_long_message(self, context_tokens: int) -> str:
         """Generate a long human message with random but meaningful words to prevent caching"""
@@ -88,6 +146,25 @@ class LLMStressTester:
             
         return structured_text
     
+    def pre_generate_messages(self, num_messages: int, num_workers: Optional[int] = None):
+        """Pre-generate random messages in parallel using multiprocessing"""
+        if num_workers is None:
+            num_workers = self.num_workers if self.num_workers is not None else multiprocessing.cpu_count()
+        
+        logger.info(f"Pre-generating {num_messages} random messages using {num_workers} processes...")
+        start_time = time.time()
+        
+        # Prepare arguments for each worker
+        import random
+        args_list = [(self.context_size, random.randint(0, 2**31)) for _ in range(num_messages)]
+        
+        # Generate messages in parallel
+        with multiprocessing.Pool(processes=num_workers) as pool:
+            self.pre_generated_messages = pool.map(_generate_long_message_worker, args_list)
+        
+        elapsed_time = time.time() - start_time
+        logger.info(f"Pre-generated {num_messages} messages in {elapsed_time:.2f} seconds")
+    
     async def send_preflight_request(self, session: aiohttp.ClientSession) -> bool:
         """Send pre-flight request to warm up cache for token generation mode"""
         if self.cache_warmed:
@@ -122,7 +199,10 @@ class LLMStressTester:
         # Handle different modes
         if self.mode == 'pp':
             # Prompt processing mode: randomize every request, max_tokens=1
-            long_message = self.generate_long_message(self.context_size)
+            if self.pre_generated_messages and request_id <= len(self.pre_generated_messages):
+                long_message = self.pre_generated_messages[request_id - 1]
+            else:
+                long_message = self.generate_long_message(self.context_size)
             max_tokens = 1
         elif self.mode == 'tg':
             # Token generation mode: use fixed prefix (cache should already be warmed)
@@ -132,7 +212,10 @@ class LLMStressTester:
             max_tokens = self.max_tokens
         else:
             # Mixed mode (default): randomize prefix like pp, use full max_tokens like tg
-            long_message = self.generate_long_message(self.context_size)
+            if self.pre_generated_messages and request_id <= len(self.pre_generated_messages):
+                long_message = self.pre_generated_messages[request_id - 1]
+            else:
+                long_message = self.generate_long_message(self.context_size)
             max_tokens = self.max_tokens
         
         # Prepare request payload
@@ -141,7 +224,7 @@ class LLMStressTester:
             "messages": [
                 {
                     "role": "user",
-                    "content": "Repeat after me x 1000 times: \n" + long_message
+                    "content": long_message + "\n <FOCUS_HERE>Tell me a very long story about a cat.</FOCUS_HERE>"
                 }
             ],
             "max_tokens": max_tokens,
@@ -238,7 +321,14 @@ class LLMStressTester:
             elif self.mode != 'tg' and self.mode != 'pp':
                 logger.info(f"  Prefix: Randomized (Mixed Mode)")
             logger.info(f"  Request Timeout: {self.request_timeout} seconds")
+            if self.mode in ('pp', 'mixed'):
+                workers_info = self.num_workers if self.num_workers is not None else multiprocessing.cpu_count()
+                logger.info(f"  Message Generation Workers: {workers_info}")
             logger.info("")
+            
+            # Pre-generate random messages for modes that need them (pp and mixed)
+            if self.mode in ('pp', 'mixed'):
+                self.pre_generate_messages(self.total_requests)
             
             # For token generation mode, send pre-flight request first to warm cache
             if self.mode == 'tg' and not self.cache_warmed:
@@ -354,8 +444,8 @@ async def main():
                        help='Token generation mode: use fixed prefix, pre-flight cache, measure generation speed')
     parser.add_argument('--concurrent-requests', type=int, default=6,
                        help='Number of concurrent requests (default: 6)')
-    parser.add_argument('--total-requests', type=int, default=100,
-                       help='Total number of requests to send (default: 100)')
+    parser.add_argument('--total-requests', type=int, default=25,
+                       help='Total number of requests to send (default: 25)')
     parser.add_argument('--request-timeout', type=int, default=180,
                        help='Request timeout in seconds (default: 180)')
     parser.add_argument('--context-size', type=int, default=70000,
@@ -364,6 +454,8 @@ async def main():
                        help='Maximum tokens to generate per request (default: 2000, ignored in -pp mode)')
     parser.add_argument('--fixed-prefix', type=str, default=None,
                        help='Fixed prefix for token generation mode (-tg). If not provided, generates one based on context-size')
+    parser.add_argument('--workers', type=int, default=None,
+                       help='Number of worker processes for generating random sequences (default: number of CPU cores)')
     
     args = parser.parse_args()
     
@@ -385,7 +477,7 @@ async def main():
                 server_url=args.server_url,
                 context_size=args.context_size
             )
-            fixed_prefix = "Repeat after me x 1000 times: \n" + tester_temp.generate_long_message(args.context_size)
+            fixed_prefix = tester_temp.generate_long_message(args.context_size) + "\n <FOCUS_HERE>Tell me a very long story about a cat.</FOCUS_HERE>"
             logger.info(f"Generated fixed prefix of ~{args.context_size} tokens for token generation mode")
     else:
         # Default to mixed mode: randomized prefix with full max_tokens
@@ -400,7 +492,8 @@ async def main():
         context_size=args.context_size,
         max_tokens=args.max_tokens,
         mode=mode,
-        fixed_prefix=fixed_prefix
+        fixed_prefix=fixed_prefix,
+        num_workers=args.workers
     )
     
     # Run the stress test

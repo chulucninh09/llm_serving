@@ -1,9 +1,8 @@
 # use_layerwise: true
 
-# This setting doesn't work because Opennebula cannot virtualize NUMA binding with GPU.
 numa_mode: auto
 # save_decode_cache: true
-# chunk_size: 256
+# chunk_size: 1024
 # max_local_disk_size: 20.0
 # local_disk: "file:///mnt/llm-data/.cache/lmcache/"
 # extra_config:

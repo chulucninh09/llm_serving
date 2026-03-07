@@ -23,8 +23,8 @@ EndSection
 
 # Overclock for undervolt
 export DISPLAY=:0
-nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=1000
-nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=1000
+nvidia-settings -a [gpu:0]/GPUGraphicsClockOffsetAllPerformanceLevels=220
+nvidia-settings -a [gpu:1]/GPUGraphicsClockOffsetAllPerformanceLevels=250
 
 # Memory uses fixed voltage => underclock to lower power consumption
 nvidia-settings -a [gpu:0]/GPUMemoryTransferRateOffsetAllPerformanceLevels=-2000
@@ -32,10 +32,11 @@ nvidia-settings -a [gpu:1]/GPUMemoryTransferRateOffsetAllPerformanceLevels=-2000
 
 # Limit clock
 nvidia-smi -pm 1
-nvidia-smi -i 0 -lgc 0,1200
-nvidia-smi -i 1 -lgc 0,1200
-nvidia-smi -lmc 0,8501
-nvidia-smi -pl 130
+nvidia-smi -i 0 -lgc 0,1400
+nvidia-smi -i 1 -lgc 0,1400
+nvidia-smi -lmc 0,5001
+nvidia-smi -i 0 -pl 160
+nvidia-smi -i 1 -pl 140
 
 # Monitor script
 watch -n0.02 "nvidia-smi -i 0 -q -d POWER,CLOCK"
