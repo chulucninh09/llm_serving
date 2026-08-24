@@ -5,3 +5,4 @@ data/
 searxng/
 __pycache__/
 cufile.log
+bench/results/

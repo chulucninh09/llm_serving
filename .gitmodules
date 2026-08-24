@@ -13,3 +13,6 @@
 [submodule "ik_llama"]
 	path = ik_llama
 	url = https://github.com/ikawrakow/ik_llama.cpp.git
+[submodule "vllm-ampere-optimized"]
+	path = vllm-ampere-optimized
+	url = https://github.com/avesed/vllm-ampere-optimized.git

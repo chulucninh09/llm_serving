@@ -17,12 +17,20 @@ tmux split-window -h -t "$SESSION_NAME"
 # Split the left pane (pane 0) horizontally into 2 panes (top and bottom)
 tmux split-window -h -t "$SESSION_NAME:0.0"
 
-# Split the right pane (pane 1) horizontally into 2 panes (top and bottom)
+# Split the top pane (pane 0) vertically into 2 panes (top and bottom)
+tmux split-window -v -t "$SESSION_NAME:0.0"
+
+# Split the bottom pane (pane 0) vertically into 2 panes (top and bottom)
 tmux split-window -v -t "$SESSION_NAME:0.2"
+
+# Split the right pane (pane 1) horizontally into 2 panes (top and bottom)
+tmux split-window -v -t "$SESSION_NAME:0.4"
 
 tmux send-keys -t "$SESSION_NAME:0.0" 'watch -n0.02 "nvidia-smi -i 0 -q -d POWER,CLOCK"' Enter
 tmux send-keys -t "$SESSION_NAME:0.1" 'watch -n0.02 "nvidia-smi -i 1 -q -d POWER,CLOCK"' Enter
-tmux send-keys -t "$SESSION_NAME:0.2" "nvtop" Enter
-tmux send-keys -t "$SESSION_NAME:0.3" "glances" Enter
+tmux send-keys -t "$SESSION_NAME:0.2" 'watch -n0.02 "nvidia-smi -i 2 -q -d POWER,CLOCK"' Enter
+tmux send-keys -t "$SESSION_NAME:0.3" 'watch -n0.02 "nvidia-smi -i 3 -q -d POWER,CLOCK"' Enter
+tmux send-keys -t "$SESSION_NAME:0.4" "nvtop" Enter
+tmux send-keys -t "$SESSION_NAME:0.5" "glances" Enter
 
 echo "Session '$SESSION_NAME' created"

@@ -1,18 +1,31 @@
 services:
   open-webui:
-    image: ghcr.io/open-webui/open-webui:v0.8.7
+    image: ghcr.io/open-webui/open-webui:v0.11.0
     container_name: open-webui
-    network_mode: host
     volumes:
       - ./data:/app/backend/data
+    network_mode: host
     environment:
       - "ENABLE_SIGNUP=False"
       - "PORT=3000"
       - "WEBUI_AUTH=False"
     restart: unless-stopped
+    ports:
+      - "3000:3000"
+  open-terminal:
+    image: ghcr.io/open-webui/open-terminal:0.11.34
+    container_name: open-terminal
+    volumes:
+      - ./data:/app/backend/data
+    environment:
+      - "OPEN_TERMINAL_API_KEY=abc123"
+      - "PORT=8001"
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
   searxng:
     container_name: searxng
-    image: searxng/searxng:latest
+    image: searxng/searxng:2026.4.22-74f1ca203
     ports:
       - "8080:8080"
     volumes:
