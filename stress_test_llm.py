@@ -98,16 +98,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class LLMStressTester:
-    def __init__(self, server_url: str, concurrent_requests: int = 4, 
+    def __init__(self, server_url: str, ccu: int = 4, 
                  total_requests: int = 100, request_timeout: int = 300,
-                 context_size: int = 40000, max_tokens: int = 150,
+                 ctx: int = 40000, max_tokens: int = 150,
                  mode: Optional[str] = None, fixed_prefix: Optional[str] = None,
                  num_workers: Optional[int] = None, api_key: Optional[str] = None):
         self.server_url = server_url
-        self.concurrent_requests = concurrent_requests
+        self.ccu = ccu
         self.total_requests = total_requests
         self.request_timeout = request_timeout
-        self.context_size = context_size
+        self.ctx = ctx
         self.max_tokens = max_tokens
         self.mode = mode  # 'pp' for prompt processing, 'tg' for token generation
         self.fixed_prefix = fixed_prefix  # Fixed prefix for token generation mode
@@ -226,7 +226,7 @@ class LLMStressTester:
         if num_workers is None:
             num_workers = self.num_workers if self.num_workers is not None else multiprocessing.cpu_count()
 
-        await self.calibrate_prefix(session, self.context_size)
+        await self.calibrate_prefix(session, self.ctx)
         copies = self.scout_copies
         target_chars = self.scout_target_chars
         logger.info(
@@ -440,10 +440,10 @@ class LLMStressTester:
             logger.error(f"Request {request_id}: FAILED (Time: {duration:.3f}s, Error: {str(e)})")
             return result
     
-    async def run_concurrent_requests(self) -> List[Dict]:
+    async def run_ccu(self) -> List[Dict]:
         """Run concurrent requests with semaphore for limiting concurrency"""
         # Create session with connection pooling
-        connector = aiohttp.TCPConnector(limit=self.concurrent_requests)
+        connector = aiohttp.TCPConnector(limit=self.ccu)
         timeout = self._client_timeout()
         
         async with aiohttp.ClientSession(
@@ -452,7 +452,7 @@ class LLMStressTester:
             headers=self._auth_headers(),
         ) as session:
             # Create a semaphore to limit concurrent requests
-            semaphore = asyncio.Semaphore(self.concurrent_requests)
+            semaphore = asyncio.Semaphore(self.ccu)
             
             async def limited_send_request(request_id):
                 async with semaphore:
@@ -462,9 +462,9 @@ class LLMStressTester:
             logger.info(f"  Server URL: {self.server_url}")
             logger.info(f"  API Key: {'set' if self.api_key else 'MISSING'}")
             logger.info(f"  Mode: {self.mode.upper() if self.mode else 'MIXED'}")
-            logger.info(f"  Concurrent Requests: {self.concurrent_requests}")
+            logger.info(f"  Concurrent Requests: {self.ccu}")
             logger.info(f"  Total Requests: {self.total_requests}")
-            logger.info(f"  Context Size: ~{self.context_size} tokens (scout + scale)")
+            logger.info(f"  Context Size: ~{self.ctx} tokens (scout + scale)")
             if self.mode == 'pp':
                 logger.info(f"  Max Tokens per Request: 1 (Prompt Processing Mode)")
             else:
@@ -487,14 +487,14 @@ class LLMStressTester:
             if self.mode == 'tg':
                 seed = self.fixed_prefix
                 self.fixed_prefix, actual = await self.calibrate_prefix(
-                    session, self.context_size, seed=seed
+                    session, self.ctx, seed=seed
                 )
                 logger.info(f"Calibrated -tg prefix to {actual} prompt tokens")
                 if not self.cache_warmed:
                     logger.info("Sending pre-flight request to warm cache...")
                     await self.send_preflight_request(session)
             
-            logger.info(f"Sending {self.concurrent_requests} concurrent requests, {self.total_requests} total...")
+            logger.info(f"Sending {self.ccu} concurrent requests, {self.total_requests} total...")
             
             # Create tasks for all requests
             tasks = [limited_send_request(i) for i in range(1, self.total_requests + 1)]
@@ -586,7 +586,7 @@ class LLMStressTester:
         mode_label = "Prompt Processing" if self.mode == 'pp' else ("Token Generation" if self.mode == 'tg' else "Mixed")
         print(f"Mode: {mode_label}")
         if self.calibrated_prompt_tokens:
-            print(f"Calibrated Prompt Tokens: {self.calibrated_prompt_tokens} (target {self.context_size})")
+            print(f"Calibrated Prompt Tokens: {self.calibrated_prompt_tokens} (target {self.ctx})")
         print(f"Average Prompt Tokens: {stats['average_prompt_tokens']:.0f}")
         print(f"Average Completion Tokens: {stats['average_completion_tokens']:.0f}")
         print(f"Average Total Tokens: {stats['average_total_tokens']:.0f}")
@@ -645,13 +645,13 @@ async def main():
                        help='Prompt processing mode: count prompt processing tok/sec, max_tokens=1, randomized requests')
     parser.add_argument('-tg', '--token-generation', action='store_true',
                        help='Token generation mode: use fixed prefix, pre-flight cache, measure generation speed')
-    parser.add_argument('--concurrent-requests', type=int, default=6,
+    parser.add_argument('-ccu', type=int, default=6,
                        help='Number of concurrent requests (default: 6)')
     parser.add_argument('--total-requests', type=int, default=25,
                        help='Total number of requests to send (default: 25)')
     parser.add_argument('--request-timeout', type=int, default=300,
                        help='Idle timeout in seconds between streamed chunks, and for scout/prefill (default: 300). Not a cap on total generation time.')
-    parser.add_argument('--context-size', type=int, default=70000,
+    parser.add_argument('-ctx', type=int, default=70000,
                        help='Desired prompt tokens. A small sample is scouted, then scaled to this length (default: 70000)')
     parser.add_argument('--max-tokens', type=int, default=500,
                        help='Maximum tokens to generate per request (default: 2000, ignored in -pp mode)')
@@ -687,10 +687,10 @@ async def main():
     # Create tester instance
     tester = LLMStressTester(
         server_url=args.server_url,
-        concurrent_requests=args.concurrent_requests,
+        ccu=args.ccu,
         total_requests=args.total_requests,
         request_timeout=args.request_timeout,
-        context_size=args.context_size,
+        ctx=args.ctx,
         max_tokens=args.max_tokens,
         mode=mode,
         fixed_prefix=fixed_prefix,
@@ -702,7 +702,7 @@ async def main():
     logger.info("Starting enhanced stress test for LLM server...")
     
     # Run asynchronously
-    await tester.run_concurrent_requests()
+    await tester.run_ccu()
     
     # Print final report
     tester.print_report()

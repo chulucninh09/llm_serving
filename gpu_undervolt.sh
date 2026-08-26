@@ -56,7 +56,10 @@ nvidia-settings -a [gpu:3]/GPUGraphicsClockOffsetAllPerformanceLevels=150
 nvidia-smi -pm 1
 nvidia-smi -lgc 0,1700
 nvidia-smi -lmc 0,10000
-nvidia-smi -pl 200
+nvidia-smi -i 0 -pl 220
+nvidia-smi -i 1 -pl 220
+nvidia-smi -i 2 -pl 240
+nvidia-smi -i 3 -pl 240
 
 
 # Monitor script

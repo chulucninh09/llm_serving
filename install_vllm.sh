@@ -51,10 +51,10 @@ uv pip uninstall cupy-cuda12x
 bash "$(dirname "$0")/apply_vllm_thinking_budget_patch.sh"
 
 # Console engine stats from EngineCore when --api-server-count > 1 (DP)
-bash "$(dirname "$0")/apply_vllm_dp_stats_log_patch.sh"
+# bash "$(dirname "$0")/apply_vllm_dp_stats_log_patch.sh"
 
 # Restore DFlash2 decoder_layer_cls hook regressed by vLLM #52560
-bash "$(dirname "$0")/apply_vllm_dflash2_decoder_layer_patch.sh"
+# bash "$(dirname "$0")/apply_vllm_dflash2_decoder_layer_patch.sh"
 
 # Enable Qwen3.5/Qwen3.6 MTP speculative decoding under pipeline parallelism.
 # bash "$(dirname "$0")/apply_vllm_mtp_pp_patch.sh"

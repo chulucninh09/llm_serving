@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
-"""External LRU janitor for vLLM FS-tier KV offload files.
+"""External LRU janitor for vLLM and SGLang filesystem KV offload pages.
 
-vLLM's filesystem secondary tier writes block files under --cache-dir with no
-capacity cap. This process polls filesystem usage via shutil.disk_usage
-(statvfs — the same syscall as df) and, when used bytes cross the high
-watermark, unlinks oldest *.bin files until usage is at or below the target.
+Both engines write unbounded ``*.bin`` pages under a shared root (default
+``/mnt/llm-data/kv-cache``):
 
-Deleting a .bin is safe: vLLM lookup is existence-based, so a missing file
-is a cache miss and the block is recomputed.
+* vLLM OffloadingConnector FS tier:
+  ``<model>_<sha>/config.json`` and ``<model>_<sha>_rN/<hhh>/<hh>_gG/<hash>.bin``
+* SGLang HiCache ``--hicache-storage-backend file``:
+  flat ``sglang/{sha256}_{served_model}_{tp_rank}_{tp_size}.bin``
+  (see ``SGLANG_HICACHE_FILE_BACKEND_STORAGE_DIR``)
+
+This process polls filesystem usage via ``shutil.disk_usage`` (statvfs — the
+same syscall as ``df``) and, when used bytes cross the high watermark, unlinks
+oldest ``*.bin`` files until usage is at or below the target.
+
+Deleting a completed ``.bin`` is safe for both engines: lookup is
+existence-based, so a missing file is a cache miss and the page is recomputed.
+In-flight SGLang temps look like ``{name}.bin.tmp.{pid}.{tid}.{uuid}`` and are
+skipped. vLLM ``config.json`` and this process's lock file are never unlinked.
+
+Note: SGLang stores millions of small files in one flat directory, so a full
+``ls`` or the first compact scan of that dir can take tens of seconds.
 """
 
 from __future__ import annotations
@@ -25,6 +38,9 @@ from pathlib import Path
 LOG = logging.getLogger("kv_cache_lru_cleaner")
 
 GIB = 1024**3
+# Directory inode size above this triggers a one-line slow-scan hint (SGLang
+# flat HiCache dirs routinely exceed 100+ MiB of dentries alone).
+HUGE_DIR_INODE_BYTES = 16 * 1024 * 1024
 LOCK_NAME = ".kv-cache-cleaner.lock"
 DEFAULT_CACHE_DIR = "/mnt/llm-data/kv-cache"
 DEFAULT_INTERVAL_S = 60.0
@@ -34,13 +50,19 @@ DEFAULT_TARGET_GIB = 140.0
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Poll filesystem usage and LRU-evict vLLM KV cache .bin files."
+        description=(
+            "Poll filesystem usage and LRU-evict vLLM FS-tier and SGLang "
+            "HiCache *.bin KV pages."
+        )
     )
     parser.add_argument(
         "--cache-dir",
         type=Path,
         default=Path(DEFAULT_CACHE_DIR),
-        help=f"vLLM FS tier root_dir (default: {DEFAULT_CACHE_DIR})",
+        help=(
+            f"Shared KV offload root covering vLLM hashed dirs and "
+            f"sglang/ HiCache (default: {DEFAULT_CACHE_DIR})"
+        ),
     )
     parser.add_argument(
         "--interval",
@@ -102,12 +124,32 @@ def acquire_lock(cache_dir: Path) -> int:
     return fd
 
 
+def _maybe_log_huge_dir(path: Path, st_size: int) -> None:
+    if st_size < HUGE_DIR_INODE_BYTES:
+        return
+    LOG.info(
+        "scanning large directory %s (inode size %s); "
+        "flat HiCache trees can take tens of seconds to list",
+        path,
+        format_gib(st_size),
+    )
+
+
 def iter_bin_files(cache_dir: Path):
-    """Yield (atime, mtime, size, path) for *.bin files under cache_dir."""
+    """Yield (atime, mtime, size, path) for completed *.bin files under cache_dir.
+
+    Skips the cleaner lock file, names ending in ``.tmp``, and SGLang in-flight
+    writes whose names contain ``.tmp.`` (e.g. ``foo.bin.tmp.123.1.abcd``).
+    """
     stack = [cache_dir]
     while stack:
         current = stack.pop()
         try:
+            try:
+                dir_st = current.stat()
+                _maybe_log_huge_dir(current, dir_st.st_size)
+            except OSError:
+                pass
             with os.scandir(current) as entries:
                 for entry in entries:
                     try:
@@ -117,7 +159,13 @@ def iter_bin_files(cache_dir: Path):
                         if not entry.is_file(follow_symlinks=False):
                             continue
                         name = entry.name
-                        if not name.endswith(".bin") or name.endswith(".tmp"):
+                        if name == LOCK_NAME:
+                            continue
+                        # Completed pages end in .bin; temps may be *.tmp or
+                        # *.bin.tmp.<pid>.<tid>.<uuid> (SGLang HiCache).
+                        if ".tmp." in name or name.endswith(".tmp"):
+                            continue
+                        if not name.endswith(".bin"):
                             continue
                         st = entry.stat(follow_symlinks=False)
                         yield st.st_atime, st.st_mtime, st.st_size, entry.path
@@ -278,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         used = fs_used_bytes(cache_dir)
         LOG.info(
-            "watching %s every %.3gs; trigger=%s target=%s; used now %s",
+            "watching %s every %.3gs; trigger=%s target=%s; used now %s "
+            "(vLLM hashed dirs + sglang/ HiCache)",
             cache_dir,
             args.interval,
             format_gib(trigger_bytes),

@@ -1,9 +1,9 @@
 # use_layerwise: true
 
 numa_mode: auto
-# save_decode_cache: true
+save_decode_cache: true
 # chunk_size: 1024
-# max_local_disk_size: 20.0
-# local_disk: "file:///mnt/llm-data/.cache/lmcache/"
+max_local_disk_size: 150
+local_disk: "file:///mnt/llm-data/kv-cache/lmcache"
 # extra_config:
 #   use_odirect: true

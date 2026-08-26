@@ -1,0 +1,1 @@
+uv pip install mooncacke-transfer-engine

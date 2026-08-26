@@ -17,7 +17,9 @@
 # --model nicosuter/Qwen3.8-27B-AWQ
 # --model biMEMO/Qwen3.8-27B-int4-AutoRound
 # --model cyankiwi/Qwen3.8-27B-AWQ-INT4
---model philbert440/Qwen3.8-27B-W4A16-AWQ
+# --model philbert440/Qwen3.8-27B-W4A16-AWQ
+# --model barrydeen/Qwen3.8-27B-AWQ-4bit
+--model pearsonkyle/Qwen3.8-27B-GPTQ-W4A16
 # --model Freaksterz/Qwen3.8-27B-SmoothQuant-W8A8-INT8
 # --model Pilcothink/Qwen3.8-27B-MixedInt4-AutoRound
 # --attention-backend FLASH_ATTN
@@ -42,7 +44,7 @@
 
 # --speculative_config.method mtp
 # --speculative_config.num_speculative_tokens 1
---dtype float16
+# --dtype float16
 --kv-cache-dtype fp8_e4m3
 # --kv-cache-dtype int8_per_token_head
 # --kv-cache-dtype float16
@@ -127,14 +129,14 @@
 --enable-chunked-prefill
 # --skip-mm-profiling
 # https://docs.lmcache.ai/recipes/qwen3_5.html
---max-num-batched-tokens 4096
---max-cudagraph-capture-size 32
---max-num-seqs 10
+--max-num-batched-tokens 8192
+--max-cudagraph-capture-size 16
+--max-num-seqs 4
 --gpu-memory-utilization 0.93
 --enable-auto-tool-choice
 --served-model-name kCode
 --async-scheduling
 --trust-remote-code
 --disable-access-log-for-endpoints /health,/metrics,/ping
---api-key $VLLM_API_KEY
+--api-key $LLM_API_KEY
 # --api-server-count 1

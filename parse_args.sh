@@ -5,12 +5,18 @@
 # - Comments (lines starting with #)
 # - Multi-line arguments (e.g., JSON spanning multiple lines)
 # - Quoted arguments with spaces
+# - Environment variable references ($VAR or ${VAR}), expanded from the
+#   current environment. Unset variables become empty. Use \$VAR for a literal $.
 #
 # Usage:
 #   source parse_args.sh
 #   ARGS=()
 #   parse_args_file "path/to/args_file.sh" ARGS
 #   # Now use "${ARGS[@]}" in your command
+#
+# In the args file, $VAR and ${VAR} are replaced from the environment:
+#   --model $MODEL_PATH
+#   --port ${PORT}
 #
 # Example:
 #   # In your script:
@@ -73,6 +79,69 @@ parse_line() {
     printf '%s\n' "${result[@]}"
 }
 
+# Expand $VAR and ${VAR} from the environment. Unset variables become empty.
+# \$VAR is left as a literal $.
+expand_env_vars() {
+    local input="$1"
+    local output=""
+    local i=0
+    local n=${#input}
+
+    while [[ $i -lt $n ]]; do
+        local char="${input:$i:1}"
+
+        if [[ "$char" == '\' && $((i + 1)) -lt $n && "${input:$((i + 1)):1}" == '$' ]]; then
+            output+='$'
+            i=$((i + 2))
+            continue
+        fi
+
+        if [[ "$char" != '$' ]]; then
+            output+="$char"
+            i=$((i + 1))
+            continue
+        fi
+
+        # ${NAME}
+        if [[ $((i + 1)) -lt $n && "${input:$((i + 1)):1}" == '{' ]]; then
+            if [[ "${input:$((i + 2))}" =~ ^([A-Za-z_][A-Za-z0-9_]*)\} ]]; then
+                local name="${BASH_REMATCH[1]}"
+                output+="${!name}"
+                i=$((i + 3 + ${#name}))
+                continue
+            fi
+            output+='$'
+            i=$((i + 1))
+            continue
+        fi
+
+        # $NAME
+        if [[ "${input:$((i + 1))}" =~ ^([A-Za-z_][A-Za-z0-9_]*) ]]; then
+            local name="${BASH_REMATCH[1]}"
+            output+="${!name}"
+            i=$((i + 1 + ${#name}))
+            continue
+        fi
+
+        output+='$'
+        i=$((i + 1))
+    done
+
+    printf '%s' "$output"
+}
+
+# Expand env vars in a parsed token and append it to the named array.
+append_parsed_arg() {
+    local array_var_name="$1"
+    local arg
+    arg="$(expand_env_vars "$2")"
+    if [[ -n "$arg" ]]; then
+        local escaped_arg
+        printf -v escaped_arg '%q' "$arg"
+        eval "$array_var_name+=($escaped_arg)"
+    fi
+}
+
 # Main function to parse an arguments file
 # Usage: parse_args_file "path/to/args_file.sh" ARRAY_VAR_NAME
 # The parsed arguments will be stored in the array variable specified by ARRAY_VAR_NAME
@@ -116,9 +185,7 @@ parse_args_file() {
                 accumulated_single_line=$(echo "$accumulated" | tr '\n' ' ')
                 while IFS= read -r arg; do
                     if [[ -n "$arg" ]]; then
-                        # Properly escape the argument for eval
-                        printf -v escaped_arg '%q' "$arg"
-                        eval "$array_var_name+=($escaped_arg)"
+                        append_parsed_arg "$array_var_name" "$arg"
                     fi
                 done < <(parse_line "$accumulated_single_line")
                 accumulated=""
@@ -134,9 +201,7 @@ parse_args_file() {
                 # Single-line argument - parse with proper quote handling
                 while IFS= read -r arg; do
                     if [[ -n "$arg" ]]; then
-                        # Properly escape the argument for eval
-                        printf -v escaped_arg '%q' "$arg"
-                        eval "$array_var_name+=($escaped_arg)"
+                        append_parsed_arg "$array_var_name" "$arg"
                     fi
                 done < <(parse_line "$line")
             fi
@@ -148,9 +213,7 @@ parse_args_file() {
         accumulated_single_line=$(echo "$accumulated" | tr '\n' ' ')
         while IFS= read -r arg; do
             if [[ -n "$arg" ]]; then
-                # Properly escape the argument for eval
-                printf -v escaped_arg '%q' "$arg"
-                eval "$array_var_name+=($escaped_arg)"
+                append_parsed_arg "$array_var_name" "$arg"
             fi
         done < <(parse_line "$accumulated_single_line")
     fi
