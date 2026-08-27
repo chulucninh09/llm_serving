@@ -26,7 +26,7 @@ def load_api_key(cli_key: Optional[str] = None) -> str:
     """Resolve API key from CLI, env, or vllm_args.sh (same key the server uses)."""
     if cli_key:
         return cli_key
-    for env_name in ("VLLM_API_KEY", "OPENAI_API_KEY"):
+    for env_name in ("LLM_API_KEY", "OPENAI_API_KEY"):
         val = os.environ.get(env_name)
         if val:
             return val

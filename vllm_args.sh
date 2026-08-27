@@ -19,10 +19,11 @@
 # --model cyankiwi/Qwen3.8-27B-AWQ-INT4
 # --model philbert440/Qwen3.8-27B-W4A16-AWQ
 # --model barrydeen/Qwen3.8-27B-AWQ-4bit
---model pearsonkyle/Qwen3.8-27B-GPTQ-W4A16
+# --model pearsonkyle/Qwen3.8-27B-GPTQ-W4A16
 # --model Freaksterz/Qwen3.8-27B-SmoothQuant-W8A8-INT8
 # --model Pilcothink/Qwen3.8-27B-MixedInt4-AutoRound
 # --attention-backend FLASH_ATTN
+--model-path RedHatAI/Qwen3.8-27B-INT4
 --load-format instanttensor
 --mm-encoder-tp-mode data
 --mm-processor-cache-type lru
@@ -30,7 +31,7 @@
 --chat-template templates/qwen3.8-enhanced.jinja2
 --tool-call-parser qwen3_coder
 # --override-generation-config '{"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "presence_penalty": 1.0, "repetition_penalty": 1.0}'
---reasoning-config '{"reasoning_start_str": "<think>", "reasoning_end_str": "</think>", "thinking_token_budget": 16384}'
+--reasoning-config '{"reasoning_start_str": "<think>", "reasoning_end_str": "</think>", "thinking_token_budget": 4096}'
 --default-chat-template-kwargs '{"preserve_thinking":true,"enable_thinking":true}'
 
 # --speculative_config.method dflash
@@ -38,9 +39,11 @@
 # --speculative_config.num_speculative_tokens 7
 # --speculative_config.draft_sample_method probabilistic
 
-# --speculative_config.method dspark
-# --speculative_config.draft_sample_method probabilistic
-# --speculative_config.rejection_sample_method block
+--speculative_config.method dspark
+--speculative_config.num_speculative_tokens 7
+--speculative_config.draft_sample_method probabilistic
+--speculative_config.model RadixArk/Qwen3.8-27B-DSpark
+--speculative-adaptive.enable_adaptive_verification true
 
 # --speculative_config.method mtp
 # --speculative_config.num_speculative_tokens 1
