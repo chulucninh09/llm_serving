@@ -19,57 +19,61 @@ sudo sed -i 's/archive.ubuntu.com/mirror.azvps.vn\/ubuntu/g' /etc/apt/sources.li
 	&& sudo apt install gh -y
 
 # Install ubuntu-drivers, cmake, ccache, nvtop, xorg, nvidia-settings
-apt install ubuntu-drivers-common cmake ccache nvtop xorg nvidia-settings build-essential libomp-dev libssl-dev openssl ffmpeg -y
+apt install ubuntu-drivers-common cmake ccache nvtop \
+ xorg nvidia-settings build-essential libomp-dev libssl-dev \
+ numactl openssl ffmpeg tmux glances python3.12-dev -y
 
 # Install nvidia-driver and nvidia-smi
-ubuntu-drivers install nvidia:580-server --gpgpu
-apt install -y nvidia-utils-580-server
+# RTX 5090 (Blackwell) requires the open kernel modules
+apt install -y linux-headers-$(uname -r)
+ubuntu-drivers install nvidia-driver-580-open --gpgpu
 
 # Run gpu_undervolt.sh
-./gpu_undervolt.sh
+# ./gpu_undervolt.sh
 
 # install cuda toolkit
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-sudo dpkg -i cuda-keyring_1.1-1_all.deb
-sudo apt-get update
-sudo apt-get -y install cuda-toolkit-13-1
-export PATH=/usr/local/cuda/bin:$PATH
+source ./install_cuda.sh
 
-# Mount drive
-mkdir -p /mnt/llm-data/huggingface
-/dev/vdb /mnt/llm-data/huggingface ext4
-systemctl daemon-reload
-mount -a
+# Mount data drives: XFS handles many small files well,
+# nofail so boot succeeds even if the disk is absent
+# mkfs.xfs -f /dev/sdb
+# uuid=$(blkid -s UUID -o value /dev/sdb)
+# mkdir -p /mnt/llm-data/kv-cache
+# echo "UUID=$uuid /mnt/llm-data/kv-cache xfs defaults,noatime,nofail 0 0" >> /etc/fstab
+# mkfs.xfs -f /dev/sdc
+# uuid=$(blkid -s UUID -o value /dev/sdc)
+# mkdir -p /mnt/llm-data/huggingface
+# echo "UUID=$uuid /mnt/llm-data/huggingface xfs defaults,noatime,nofail 0 0" >> /etc/fstab
+# mount -a
+
+# Point Hugging Face cache at the data drive
+grep -q 'export HF_HOME="/mnt/llm-data/huggingface"' ~/.bashrc \
+  || printf '\n# Hugging Face cache on data drive\nexport HF_HOME="/mnt/llm-data/huggingface"\n' >> ~/.bashrc
 
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Login to huggingface
-uvx hf auth login
 
-# Download model
-uvx hf download 
+# # To use llama.cpp
+# # Install blis
+# cd blis
+# ./configure --enable-cblas -t openmp,pthreads auto
+# # will install to /usr/local/ by default.
+# make -j
+# sudo make install
 
-# To use llama.cpp
-# Install blis
-cd blis
-./configure --enable-cblas -t openmp,pthreads auto
-# will install to /usr/local/ by default.
-make -j
-sudo make install
+# # Compile llama.cpp
+# ./build_llama.cpp.sh
 
-# Compile llama.cpp
-./build_llama.cpp.sh
+# # Run llama.cpp
+# ./run_llama.cpp.sh
 
-# Run llama.cpp
-./run_llama.cpp.sh
+# # To use vLLM
+# # Install docker
+# ./install_docker.sh
 
-# To use vLLM
-# Install docker
-./install_docker.sh
+# # Install nvidia container toolkit
+# ./install_nvidia_container_toolkit.sh
 
-# Install nvidia container toolkit
-./install_nvidia_container_toolkit.sh
-
-# Run vLLM
-./run_vllm.sh
+# # Run vLLM
+# ./run_vllm.sh

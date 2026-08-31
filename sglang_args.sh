@@ -20,10 +20,10 @@
 # --model-path RedHatAI/Qwen3.8-27B-INT4
 --model-path RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead
 --enable-multimodal
---mm-process-config '{"image":{"max_pixels":3211264}}'
+--mm-process-config '{"image":{"min_pixels":65536,"max_pixels":3211264}}'
 --image-processor-backend pil
 --mm-enable-dp-encoder
---mm-preprocess-cache-size-mb 512
+--mm-preprocess-cache-size-mb 256
 --kv-cache-dtype fp8_e4m3
 --reasoning-parser qwen3
 --tool-call-parser qwen3_coder
@@ -38,11 +38,13 @@
 --speculative-algorithm DSPARK 
 --speculative-draft-model-path RadixArk/Qwen3.8-27B-DSpark
 --speculative-adaptive
---max-mamba-cache-size 16
---mamba-radix-cache-strategy extra_buffer_lazy
+# --mamba-full-memory-ratio 0.6
+--max-mamba-cache-size 48
+--mamba-radix-cache-strategy extra_buffer
+--mamba-track-interval 512
 --mamba-ssm-dtype bfloat16
 --dtype bfloat16
---preferred-sampling-params '{"custom_params": {"thinking_budget": 4096}}'
+--preferred-sampling-params '{"custom_params": {"thinking_budget": 2048}}'
 
 
 # Common config
@@ -55,8 +57,8 @@
 # --model-impl sglang
 --api-key $LLM_API_KEY
 --enable-metrics
---mem-fraction-static 0.8
---max-running-requests 4
+--mem-fraction-static 0.84
+--max-running-requests 8
 --schedule-policy lpm
 --trust-remote-code
 
@@ -65,22 +67,20 @@
 --enable-cudagraph-gc
 --enable-mixed-chunk
 
---chunked-prefill-size 8192
---max-prefill-tokens 8192
---cuda-graph-max-bs-prefill 4096
---cuda-graph-bs-prefill 1024 2048 4096
+--chunked-prefill-size 2048
+--max-prefill-tokens 2048
+--cuda-graph-bs-prefill 512 1024 2048
 
---cuda-graph-max-bs-decode 4
+--cuda-graph-max-bs-decode 8
 
 # Hierarchical cache
 --enable-session-radix-cache
 --enable-hierarchical-cache
---hicache-size 7
+--hicache-size 5
 --hicache-io-backend direct
 --hicache-storage-backend file
---hicache-storage-backend-extra-config '{"max_size":"40G","eviction_ratio":0.9}'
+--hicache-storage-backend-extra-config '{"max_size":"60G","eviction_ratio":0.9}'
 --page-size 64
-# --hicache-storage-backend file
 
 # Performance
 # --enable-dynamic-batch-tokenizer

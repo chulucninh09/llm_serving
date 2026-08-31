@@ -14,7 +14,7 @@
 {%- endif %}
 {%- set max_tool_arg_chars = max_tool_arg_chars if max_tool_arg_chars is defined else 0 %}
 {%- set max_tool_response_chars = max_tool_response_chars if max_tool_response_chars is defined else 0 %}
-{%- set _default_reasoning_effort = 'high' %}
+{%- set _default_reasoning_effort = 'medium' %}
 {%- set _has_tools = (tools is defined and tools and tools is iterable and tools is not mapping) %}
 {%- set _effort_raw = (reasoning_effort | string | lower) if reasoning_effort is defined and reasoning_effort is not none else _default_reasoning_effort %}
 {%- set _initial_thinking = enable_thinking %}
