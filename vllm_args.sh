@@ -50,7 +50,7 @@
 # --skip-mm-profiling
 # https://docs.lmcache.ai/recipes/qwen3_5.html
 --long-prefill-token-threshold 1024
---max-num-batched-tokens 6144
+--max-num-batched-tokens 4096
 --max-cudagraph-capture-size 128
 --cudagraph-capture-sizes 8 16 24 32 40 48 56 64 80 96 112 128
 # --compilation-config '{"cudagraph_mode": "FULL_AND_PIECEWISE", "cudagraph_capture_sizes": [512, 1024, 2048, 4096], "cudagraph_num_of_warmups": 1, "compile_sizes": [512, 1024, 2048, 4096, 8192]}'
