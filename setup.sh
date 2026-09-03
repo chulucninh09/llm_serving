@@ -1,32 +1,48 @@
+set -e
+
+# One-shot hardening: never block on debconf prompts, and refresh package
+# lists first so a freshly provisioned box can find every package below.
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+
 # Setup tailscale for easier access
-curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up --login-server=https://headscale.fidt.vn --reset --accept-dns --accept-routes
+# curl -fsSL https://tailscale.com/install.sh | sh
+# tailscale up --login-server=https://headscale.fidt.vn --reset --accept-dns --accept-routes
 
 # Download nessessary packages
 
 # Update ubuntu mirror
-sudo sed -i 's/archive.ubuntu.com/mirror.azvps.vn\/ubuntu/g' /etc/apt/sources.list.d/ubuntu.list
+# sudo sed -i 's/archive.ubuntu.com/mirror.azvps.vn\/ubuntu/g' /etc/apt/sources.list.d/ubuntu.list
 
 # Install gh cli
-(type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
-	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
-	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
-	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-	&& sudo apt update \
-	&& sudo apt install gh -y
+# (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+# 	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+# 	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+# 	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+# 	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+# 	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+# 	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+# 	&& sudo apt update \
+# 	&& sudo apt install gh -y
 
 # Install ubuntu-drivers, cmake, ccache, nvtop, xorg, nvidia-settings
 apt install ubuntu-drivers-common cmake ccache nvtop \
  xorg nvidia-settings build-essential libomp-dev libssl-dev \
- numactl openssl ffmpeg tmux glances python3.12-dev -y
+ numactl openssl ffmpeg tmux glances -y
 
-# Install nvidia-driver and nvidia-smi
-# RTX 5090 (Blackwell) requires the open kernel modules
+# Install nvidia-driver and nvidia-smi — one-shot on a fresh box.
+# RTX 5090 (Blackwell, PCI 10de:2b85) requires the OPEN kernel modules.
+# nvidia-driver-580-open pulls in:
+#   - nvidia-dkms-580-open   (DKMS-compiles the module for $(uname -r))
+#   - nvidia-utils-580       (provides nvidia-smi)
+#   - nouveau blacklist + nvidia modprobe config
 apt install -y linux-headers-$(uname -r)
-ubuntu-drivers install nvidia-driver-580-open --gpgpu
+apt install -y nvidia-driver-580-open
+
+# First boot after driver install, nouveau may still hold the GPU until a
+# reboot. Try to bring the module up now; if it fails, a reboot fixes it.
+modprobe nvidia 2>/dev/null || echo "nvidia module not loadable yet -> reboot required"
+nvidia-smi 2>/dev/null || echo "Driver installed. Run 'nvidia-smi' after a reboot to verify."
 
 # Run gpu_undervolt.sh
 # ./gpu_undervolt.sh
