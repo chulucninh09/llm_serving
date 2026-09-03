@@ -50,17 +50,11 @@ uv pip uninstall cupy-cuda12x
 # Default thinking_token_budget via --reasoning-config
 bash "$(dirname "$0")/apply_vllm_thinking_budget_patch.sh"
 
-# Console engine stats from EngineCore when --api-server-count > 1 (DP)
-# bash "$(dirname "$0")/apply_vllm_dp_stats_log_patch.sh"
+# Recognize Qwen3-based DSpark drafts (arch=DSparkDraftModel, model_type=qwen3)
+# as Qwen3DSparkModel instead of routing them to the DeepSeek-V4 class.
+# bash "$(dirname "$0")/apply_vllm_dspark_arch_patch.sh"
 
-# Restore DFlash2 decoder_layer_cls hook regressed by vLLM #52560
-# bash "$(dirname "$0")/apply_vllm_dflash2_decoder_layer_patch.sh"
-
-# Enable Qwen3.5/Qwen3.6 MTP speculative decoding under pipeline parallelism.
-# bash "$(dirname "$0")/apply_vllm_mtp_pp_patch.sh"
-
-# Synchronous KV offload CPU pinning (avoids cudaHostRegister vs cudagraph race)
-# bash "$(dirname "$0")/apply_vllm_kv_offload_pin_patch.sh"
-
-# Humming support for AutoRound checkpoints (Lorbus/Qwen3.6-27B-int4-AutoRound)
-# bash "$(dirname "$0")/apply_vllm_humming_patch.sh"
+# DSpark + hybrid-Mamba prefix-cache reuse: keep Mamba groups out of the
+# "flag all groups as draft" fallback (both the coordinator and the offloading
+# connector), restoring align-mode Mamba prefix reuse.
+# bash "$(dirname "$0")/apply_vllm_dspark_mamba_prefix_patch.sh"

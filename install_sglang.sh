@@ -10,4 +10,4 @@ uv pip install transformers flashinfer-python torch sglang sglang-kernel "cuda-t
     --upgrade --prerelease=allow --index-strategy unsafe-best-match
 
 # Keep fused GDN in_proj_ba unquantized (24-wide at TP=4; Marlin cannot repack it).
-bash "$(dirname "$0")/apply_sglang_qwen3_5_hf_mapper_patch.sh"
+# bash "$(dirname "$0")/apply_sglang_qwen3_5_hf_mapper_patch.sh"

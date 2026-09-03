@@ -43,9 +43,9 @@ GIB = 1024**3
 HUGE_DIR_INODE_BYTES = 16 * 1024 * 1024
 LOCK_NAME = ".kv-cache-cleaner.lock"
 DEFAULT_CACHE_DIR = "/mnt/llm-data/kv-cache"
-DEFAULT_INTERVAL_S = 60.0
-DEFAULT_TRIGGER_GIB = 185.0
-DEFAULT_TARGET_GIB = 140.0
+DEFAULT_INTERVAL_S = 30.0
+DEFAULT_TRIGGER_GIB = 230.0
+DEFAULT_TARGET_GIB = 180.0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

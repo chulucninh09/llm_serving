@@ -4,6 +4,14 @@ Enhanced Stress test script for self-hosted LLM server
 This script sends concurrent requests to test server capacity with long context messages
 Logs actual tokens returned from server to verify context setup
 Uses Python's built-in asyncio for asynchronous operations
+
+Modes:
+  -pp        prompt processing: many unique ctx-length prompts, max_tokens=1
+  -tg        token generation: one fixed ctx prefix (cache warmed), max_tokens generation
+  -agentic   agentic streaming (DEFAULT): ccu concurrent "agent" streams; each stream starts
+             from a ctx-length prefix and every request appends a fresh random
+             ~agentic-input-tokens chunk (default 1000) before sending. Models the growing
+             context of a real LLM agent loop (repeated tool/input turns).
 """
 
 import asyncio
@@ -56,6 +64,19 @@ SCOUT_WORDS = 480
 FOCUS_SUFFIX = (
     "\n <FOCUS_HERE>Repeat previous sentence infinitively until I say stop.</FOCUS_HERE>"
 )
+# Realistic agent-like filler for the incremental input chunks appended on every
+# stream turn in agentic mode (multi-turn, function-call / tool-result flavor).
+AGENT_FILLER_WORDS = [
+    "function", "call", "tool", "result", "observation", "input", "output", "command",
+    "execute", "return", "agent", "turn", "step", "status", "success", "error", "retry",
+    "fetch", "query", "response", "payload", "request", "session", "context", "history",
+    "memory", "plan", "reason", "action", "next", "continue", "review", "check", "verify",
+    "compute", "source", "target", "value", "resulting", "according", "request", "handle",
+    "process", "update", "modify", "invoke", "schedule", "notify", "confirm", "parse",
+    "analyze", "summarize", "truncate", "remaining", "available", "complete", "partial",
+]
+
+
 RANDOM_WORDS = [
     "the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "computer", "science",
     "artificial", "intelligence", "machine", "learning", "deep", "neural", "network", "algorithm",
@@ -89,8 +110,25 @@ def scale_text(seed: str, copies: int, target_chars: Optional[int] = None) -> st
     return body[:target_chars]
 
 
+def generate_agentic_input(rng: random.Random, approx_tokens: int) -> str:
+    """Random agent turn / tool-result style text of ~approx_tokens tokens."""
+    approx_tokens = max(1, int(approx_tokens))
+    # One filler word is roughly one token for common tokenizers, so pick a few
+    # extra words and let scale_text() trim to the exact char budget.
+    n_words = max(1, int(approx_tokens * 1.2))
+    parts = [rng.choice(AGENT_FILLER_WORDS) for _ in range(n_words)]
+    for i in range(12, n_words, 17):
+        parts[i] = parts[i] + rng.choice([".", ",", ";", ":"])
+    seed = " ".join(parts) + "\n"
+    return scale_text(seed, 1, max(len(seed), approx_tokens * 6))
+
+
 def _generate_seed_worker(seed: int) -> str:
     return generate_seed_text(random.Random(seed))
+
+
+def _generate_agentic_worker(seed: int, approx_tokens: int) -> str:
+    return generate_agentic_input(random.Random(seed), approx_tokens)
 
 
 # Configure logging
@@ -98,24 +136,27 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class LLMStressTester:
-    def __init__(self, server_url: str, ccu: int = 4, 
+    def __init__(self, server_url: str, ccu: int = 4,
                  total_requests: int = 100, request_timeout: int = 300,
                  ctx: int = 40000, max_tokens: int = 150,
                  mode: Optional[str] = None, fixed_prefix: Optional[str] = None,
-                 num_workers: Optional[int] = None, api_key: Optional[str] = None):
+                 num_workers: Optional[int] = None, api_key: Optional[str] = None,
+                 agentic_input_tokens: int = 1000):
         self.server_url = server_url
         self.ccu = ccu
         self.total_requests = total_requests
         self.request_timeout = request_timeout
         self.ctx = ctx
         self.max_tokens = max_tokens
-        self.mode = mode  # 'pp' for prompt processing, 'tg' for token generation
+        self.mode = mode  # 'pp' prompt processing, 'tg' token generation, 'agentic' agent streams
         self.fixed_prefix = fixed_prefix  # Fixed prefix for token generation mode
         self.num_workers = num_workers  # Number of worker processes for message generation
         self.api_key = api_key or ""
+        self.agentic_input_tokens = agentic_input_tokens  # Random input tokens added per agent turn
         self.results = []
         self.cache_warmed = False  # Track if cache has been warmed for -tg mode
         self.pre_generated_messages = []  # Store pre-generated random messages
+        self.pre_generated_chunks = []  # Store pre-generated random agentic input chunks
         self.wall_time = 0.0
         self.scout_copies = 1
         self.scout_target_chars = 0
@@ -246,6 +287,29 @@ class LLMStressTester:
             f"(scouted {self.calibrated_prompt_tokens} prompt tokens)"
         )
 
+    async def pre_generate_chunks(
+        self, session: aiohttp.ClientSession, num_chunks: int, num_workers: Optional[int] = None
+    ):
+        """Pre-generate random agentic input chunks of ~agentic_input_tokens tokens each."""
+        if num_workers is None:
+            num_workers = self.num_workers if self.num_workers is not None else multiprocessing.cpu_count()
+
+        logger.info(
+            f"Pre-generating {num_chunks} agentic input chunks "
+            f"(~{self.agentic_input_tokens} tokens each) using {num_workers} processes..."
+        )
+        start_time = time.time()
+        args_list = [
+            (random.randint(0, 2**31), self.agentic_input_tokens)
+            for _ in range(num_chunks)
+        ]
+        with multiprocessing.Pool(processes=num_workers) as pool:
+            self.pre_generated_chunks = pool.starmap(_generate_agentic_worker, args_list)
+        elapsed_time = time.time() - start_time
+        logger.info(
+            f"Pre-generated {num_chunks} agentic input chunks in {elapsed_time:.2f} seconds"
+        )
+
     async def _read_api_response(self, response: aiohttp.ClientResponse) -> Dict:
         """Parse JSON and raise if the API request failed (HTTP or error body)."""
         body = await response.text()
@@ -336,7 +400,7 @@ class LLMStressTester:
             return True
             
         try:
-            payload = self._chat_payload(self._full_content(self.fixed_prefix), max_tokens=1)
+            payload = self._chat_payload(self._full_content(self.fixed_prefix or ""), max_tokens=1)
             
             async with session.post(self.server_url, json=payload) as response:
                 await self._read_api_response(response)
@@ -350,7 +414,7 @@ class LLMStressTester:
     async def send_request(self, session: aiohttp.ClientSession, request_id: int) -> Dict:
         """Send a single request and return timing and token information"""
         start_time = time.time()
-        
+
         # Handle different modes
         if self.mode == 'pp':
             # Prompt processing mode: randomize every request, max_tokens=1
@@ -370,7 +434,7 @@ class LLMStressTester:
             long_message = self.fixed_prefix
             max_tokens = self.max_tokens
         else:
-            # Mixed mode (default): randomize prefix like pp, use full max_tokens like tg
+            # Mixed mode: randomize prefix like pp, use full max_tokens like tg
             if self.pre_generated_messages and request_id <= len(self.pre_generated_messages):
                 long_message = self.pre_generated_messages[request_id - 1]
             else:
@@ -380,9 +444,9 @@ class LLMStressTester:
                     self.scout_target_chars or None,
                 )
             max_tokens = self.max_tokens
-        
+
         payload = self._chat_payload(self._full_content(long_message), max_tokens)
-        
+
         try:
             response_data = await self._stream_chat_completion(session, payload, start_time)
             prompt_tokens = response_data["prompt_tokens"]
@@ -412,7 +476,7 @@ class LLMStressTester:
                 "tokens_per_sec": tokens_per_sec,
             }
 
-            mode_label = "Prompt Processing" if self.mode == "pp" else ("Token Generation" if self.mode == "tg" else "Mixed")
+            mode_label = "Prompt Processing" if self.mode == "pp" else ("Token Generation" if self.mode == "tg" else ("Agentic" if self.mode == "agentic" else "Mixed"))
             logger.info(
                 f"Request {request_id}: SUCCESS [{mode_label}] "
                 f"(Prompt: {prompt_tokens}, Completion: {completion_tokens}, "
@@ -439,25 +503,182 @@ class LLMStressTester:
 
             logger.error(f"Request {request_id}: FAILED (Time: {duration:.3f}s, Error: {str(e)})")
             return result
-    
+
+    def _build_agent_stream(self, num_turns: int) -> List[Dict]:
+        """Simulate an agent loop: every turn appends a fresh random input chunk."""
+        turns = []
+        for _turn in range(num_turns):
+            chunk = self.pre_generated_chunks[_turn % len(self.pre_generated_chunks)]
+            turns.append({
+                "role": "user",
+                "content": chunk,
+            })
+        return turns
+
+    def _messages_for_agent_turn(self, stream_idx: int, turn: int, rng: random.Random) -> List[Dict]:
+        """Messages sent to the server for one agent turn, i.e. history + new input."""
+        # Note: rng is not used for content selection (chunks are deterministic per
+        # stream/turn for reproducibility); it exists to keep the signature stable.
+        del rng
+        prefix = self.pre_generated_messages[stream_idx % len(self.pre_generated_messages)]
+        messages = [
+            {"role": "user", "content": prefix},
+            {"role": "assistant", "content": "Understood. Continue."},
+        ]
+        for t in range(turn):
+            chunk = self.pre_generated_chunks[(stream_idx * 1009 + t) % len(self.pre_generated_chunks)]
+            messages.append({"role": "user", "content": chunk})
+            messages.append({"role": "assistant", "content": "Understood. Continue."})
+        next_chunk = self.pre_generated_chunks[(stream_idx * 1009 + turn) % len(self.pre_generated_chunks)]
+        messages.append({"role": "user", "content": next_chunk})
+        return messages
+
+    def _agent_payload(self, messages: List[Dict], max_tokens: int) -> Dict:
+        return {
+            "model": "kCode",
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0.7,
+            "ignore_eos": True,
+        }
+
+    async def _agent_turn(
+        self,
+        session: aiohttp.ClientSession,
+        messages: List[Dict],
+        stream_idx: int,
+        turn: int,
+    ) -> Dict:
+        """Send one growing-context request of an agent stream and return per-turn stats."""
+        start_time = time.time()
+        payload = self._agent_payload(messages, self.max_tokens)
+        response_data = await self._stream_chat_completion(session, payload, start_time)
+
+        prompt_tokens = response_data["prompt_tokens"]
+        completion_tokens = response_data["completion_tokens"]
+        total_tokens = response_data["total_tokens"]
+        ttft = response_data["ttft"]
+        duration = response_data["e2e"]
+        # Decode speed is measured like -tg: only the freshly generated tokens
+        decode_s = duration - ttft
+        if completion_tokens > 1 and decode_s > 0:
+            tokens_per_sec = (completion_tokens - 1) / decode_s
+        else:
+            tokens_per_sec = 0
+        result = {
+            "request_id": stream_idx,
+            "turn": turn,
+            "status": "SUCCESS",
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "duration": duration,
+            "ttft": ttft,
+            "tokens_per_sec": tokens_per_sec,
+        }
+        logger.info(
+            f"Stream {stream_idx} turn {turn}: SUCCESS "
+            f"(Prompt: {prompt_tokens}, Completion: {completion_tokens}, "
+            f"TTFT: {ttft:.3f}s, Time: {duration:.3f}s, Tok/sec: {tokens_per_sec:.2f})"
+        )
+        return result
+
+    def _failed_agent_result(self, stream_idx: int, turn: int) -> Dict:
+        return {
+            "request_id": stream_idx,
+            "turn": turn,
+            "status": "FAILED",
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "duration": 0,
+            "ttft": 0,
+            "tokens_per_sec": 0,
+        }
+
+    async def _run_agent_stream(
+        self, session: aiohttp.ClientSession, semaphore: asyncio.Semaphore, stream_idx: int
+    ) -> None:
+        """Run a single agent stream: ccu streams total, one message per turn."""
+        rng = random.Random(stream_idx * 7919 + 1)
+        num_turns = max(1, math.ceil(self.total_requests / self.ccu))
+        # Delay each stream's start so they spread out over the test
+        await asyncio.sleep(stream_idx * 0.25)
+        for turn in range(num_turns):
+            async with semaphore:
+                try:
+                    messages = self._messages_for_agent_turn(stream_idx, turn, rng)
+                    result = await self._agent_turn(session, messages, stream_idx, turn)
+                    self.results.append(result)
+                except Exception as e:
+                    logger.error(f"Stream {stream_idx} turn {turn}: FAILED (Error: {e})")
+                    self.results.append(self._failed_agent_result(stream_idx, turn))
+                    break  # Context would be broken; stop this stream
+
+    async def run_agentic(self) -> List[Dict]:
+        """Run agentic mode: ccu agent streams with growing contexts, total_requests messages."""
+        connector = aiohttp.TCPConnector(limit=self.ccu)
+        timeout = self._client_timeout()
+        async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            headers=self._auth_headers(),
+        ) as session:
+            semaphore = asyncio.Semaphore(self.ccu)
+
+            logger.info("Configuration:")
+            logger.info(f"  Server URL: {self.server_url}")
+            logger.info(f"  API Key: {'set' if self.api_key else 'MISSING'}")
+            logger.info(f"  Mode: AGENTIC")
+            logger.info(f"  Concurrent Agent Streams: {self.ccu}")
+            logger.info(f"  Total Agent Messages (Requests): {self.total_requests}")
+            logger.info(f"  Context Size: ~{self.ctx} tokens (scout + scale)")
+            logger.info(f"  Agentic Input Tokens per Turn: {self.agentic_input_tokens} (random)")
+            logger.info(f"  Max Tokens per Request: {self.max_tokens}")
+            logger.info("  ignore_eos: enabled")
+            logger.info(f"  Request Timeout: {self.request_timeout} seconds idle between stream chunks")
+            logger.info("  Streaming: enabled")
+            workers_info = self.num_workers if self.num_workers is not None else multiprocessing.cpu_count()
+            logger.info(f"  Message Generation Workers: {workers_info}")
+            logger.info("")
+
+            await self.pre_generate_messages(session, self.ccu)
+            await self.pre_generate_chunks(session, max(self.total_requests, self.ccu))
+            num_turns = max(1, math.ceil(self.total_requests / self.ccu))
+            logger.info(
+                f"Sending {self.ccu} concurrent agent streams, "
+                f"~{num_turns} turns per stream (~{self.total_requests} total requests)..."
+            )
+
+            wall_start = time.time()
+            await asyncio.gather(
+                *[
+                    self._run_agent_stream(session, semaphore, i)
+                    for i in range(1, self.ccu + 1)
+                ]
+            )
+            self.wall_time = time.time() - wall_start
+
+            return self.results
+
     async def run_ccu(self) -> List[Dict]:
         """Run concurrent requests with semaphore for limiting concurrency"""
         # Create session with connection pooling
         connector = aiohttp.TCPConnector(limit=self.ccu)
         timeout = self._client_timeout()
-        
+
         async with aiohttp.ClientSession(
-            connector=connector, 
+            connector=connector,
             timeout=timeout,
             headers=self._auth_headers(),
         ) as session:
             # Create a semaphore to limit concurrent requests
             semaphore = asyncio.Semaphore(self.ccu)
-            
+
             async def limited_send_request(request_id):
                 async with semaphore:
                     return await self.send_request(session, request_id)
-            
+
             logger.info("Configuration:")
             logger.info(f"  Server URL: {self.server_url}")
             logger.info(f"  API Key: {'set' if self.api_key else 'MISSING'}")
@@ -583,8 +804,13 @@ class LLMStressTester:
         
         print("\nDetailed Token Statistics:")
         print("--------------------------")
-        mode_label = "Prompt Processing" if self.mode == 'pp' else ("Token Generation" if self.mode == 'tg' else "Mixed")
-        print(f"Mode: {mode_label}")
+        if self.mode == 'agentic':
+            print("Mode: Agentic Streaming")
+            print(f"Concurrent Agent Streams: {self.ccu}")
+            print(f"Agentic Input Tokens per Turn: {self.agentic_input_tokens}")
+        else:
+            mode_label = "Prompt Processing" if self.mode == 'pp' else ("Token Generation" if self.mode == 'tg' else "Mixed")
+            print(f"Mode: {mode_label}")
         if self.calibrated_prompt_tokens:
             print(f"Calibrated Prompt Tokens: {self.calibrated_prompt_tokens} (target {self.ctx})")
         print(f"Average Prompt Tokens: {stats['average_prompt_tokens']:.0f}")
@@ -596,7 +822,7 @@ class LLMStressTester:
         elif self.mode == 'tg':
             print(f"Average Decode Tokens/Second: {stats['average_tokens_per_sec']:.2f}")
         else:
-            print(f"Average Decode Tokens/Second (Mixed Mode): {stats['average_tokens_per_sec']:.2f}")
+            print(f"Average Decode Tokens/Second: {stats['average_tokens_per_sec']:.2f}")
         print(f"Min Prompt Tokens: {stats['min_prompt_tokens']}")
         print(f"Max Prompt Tokens: {stats['max_prompt_tokens']}")
         print(f"Min Completion Tokens: {stats['min_completion_tokens']}")
@@ -645,8 +871,13 @@ async def main():
                        help='Prompt processing mode: count prompt processing tok/sec, max_tokens=1, randomized requests')
     parser.add_argument('-tg', '--token-generation', action='store_true',
                        help='Token generation mode: use fixed prefix, pre-flight cache, measure generation speed')
+    parser.add_argument('-agentic', '--agentic', action='store_true',
+                       help='Agentic streaming mode (DEFAULT): simulate ccu concurrent agent streams; '
+                            'each stream starts with a ctx-length prefix and appends a random agentic-input chunk every request')
+    parser.add_argument('--agentic-input-tokens', type=int, default=1000,
+                       help='Approx random tokens added to each request/turn in agentic mode (default: 1000)')
     parser.add_argument('-ccu', type=int, default=6,
-                       help='Number of concurrent requests (default: 6)')
+                       help='Number of concurrent requests/agent streams (default: 6)')
     parser.add_argument('--total-requests', type=int, default=25,
                        help='Total number of requests to send (default: 25)')
     parser.add_argument('--request-timeout', type=int, default=300,
@@ -672,18 +903,25 @@ async def main():
     mode = None
     fixed_prefix = args.fixed_prefix
     
-    if args.prompt_processing and args.token_generation:
-        logger.error("Cannot use both -pp and -tg modes simultaneously")
+    if args.prompt_processing and (args.token_generation or args.agentic):
+        logger.error("Cannot combine -pp with -tg or -agentic")
         return
-    
+
+    if args.token_generation and args.agentic:
+        logger.error("Cannot use both -tg and -agentic modes simultaneously")
+        return
+
     if args.prompt_processing:
         mode = 'pp'
     elif args.token_generation:
         mode = 'tg'
+    elif args.agentic:
+        mode = 'agentic'
     else:
-        # Default to mixed mode: randomized prefix with full max_tokens
-        mode = 'mixed'
-    
+        # Default to agentic streaming: realistic LLM agent loop with growing context
+        mode = 'agentic'
+        logger.info("No mode selected, defaulting to agentic mode (-agentic)")
+
     # Create tester instance
     tester = LLMStressTester(
         server_url=args.server_url,
@@ -696,14 +934,18 @@ async def main():
         fixed_prefix=fixed_prefix,
         num_workers=args.workers,
         api_key=api_key,
+        agentic_input_tokens=args.agentic_input_tokens,
     )
-    
+
     # Run the stress test
     logger.info("Starting enhanced stress test for LLM server...")
-    
+
     # Run asynchronously
-    await tester.run_ccu()
-    
+    if mode == 'agentic':
+        await tester.run_agentic()
+    else:
+        await tester.run_ccu()
+
     # Print final report
     tester.print_report()
 

@@ -18,7 +18,6 @@ unset VLLM_ARGS_FILE
 
 # ---- Safe, Speed‑Focused Env Vars ----
 # export NCCL_CUMEM_ENABLE=0                  # Critical: forces cudaMalloc for BAR1 P2P compatibility
-export NCCL_P2P_LEVEL=LOC                # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 export NCCL_SHM_DISABLE=0     # keep SHM enabled (this is the fast path)
 export NCCL_ALGO=Ring
 export NCCL_PROTO=LL,Simple

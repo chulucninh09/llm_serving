@@ -57,8 +57,8 @@
 # --model-impl sglang
 --api-key $LLM_API_KEY
 --enable-metrics
---mem-fraction-static 0.84
---max-running-requests 8
+--mem-fraction-static 0.82
+--max-running-requests 12
 --schedule-policy lpm
 --trust-remote-code
 
@@ -67,16 +67,16 @@
 --enable-cudagraph-gc
 --enable-mixed-chunk
 
---chunked-prefill-size 2048
---max-prefill-tokens 2048
---cuda-graph-bs-prefill 512 1024 2048
+--chunked-prefill-size 1024
+--max-prefill-tokens 6144
+--cuda-graph-bs-prefill 512 1024 2048 3072 4096 5120 6144
 
---cuda-graph-max-bs-decode 8
+# --cuda-graph-max-bs-decode 12
 
 # Hierarchical cache
 --enable-session-radix-cache
 --enable-hierarchical-cache
---hicache-size 5
+--hicache-size 4
 --hicache-io-backend direct
 --hicache-storage-backend file
 --hicache-storage-backend-extra-config '{"max_size":"60G","eviction_ratio":0.9}'

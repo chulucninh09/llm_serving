@@ -34,17 +34,35 @@ ubuntu-drivers install nvidia-driver-580-open --gpgpu
 # install cuda toolkit
 source ./install_cuda.sh
 
-# Mount data drives: XFS handles many small files well,
-# nofail so boot succeeds even if the disk is absent
-# mkfs.xfs -f /dev/sdb
-# uuid=$(blkid -s UUID -o value /dev/sdb)
+# Mount data drives (reproducible from a re-provisioned box):
+#   vdb = HF weights  -> ext4 (kept), tuned for sequential read
+#   vdc = KV offload  -> XFS, tuned for random whole-file 512KB reads
+# nofail so boot succeeds even if the disk is absent.
+#
+# vdc: XFS (random-IO profile)
+# mkfs.xfs -f -L llm-kv -m reflink=0 -d agcount=16 -l internal,size=256m /dev/vdc
 # mkdir -p /mnt/llm-data/kv-cache
-# echo "UUID=$uuid /mnt/llm-data/kv-cache xfs defaults,noatime,nofail 0 0" >> /etc/fstab
-# mkfs.xfs -f /dev/sdc
-# uuid=$(blkid -s UUID -o value /dev/sdc)
+# echo "LABEL=llm-kv /mnt/llm-data/kv-cache xfs defaults,noatime,nofail,x-systemd.device-timeout=10s,logbsize=256k 0 0" >> /etc/fstab
+# mkdir -p /mnt/llm-data/kv-cache/sglang
+# xfs_io -c 'extsize 512k' /mnt/llm-data/kv-cache
+# xfs_io -c 'extsize 512k' /mnt/llm-data/kv-cache/sglang
+#
+# vdb: ext4 (sequential-IO profile), keep existing filesystem
+# uuid=$(blkid -s UUID -o value /dev/vdb)
 # mkdir -p /mnt/llm-data/huggingface
-# echo "UUID=$uuid /mnt/llm-data/huggingface xfs defaults,noatime,nofail 0 0" >> /etc/fstab
+# echo "UUID=$uuid /mnt/llm-data/huggingface ext4 defaults,noatime,nofail,x-systemd.device-timeout=10s 0 2" >> /etc/fstab
 # mount -a
+#
+# Per-disk block-layer tuning (persistent) -> /etc/udev/rules.d/99-llm-data.rules:
+#   ACTION=="add|change", KERNEL=="vdb", SUBSYSTEM=="block", ATTR{queue/scheduler}="none", ATTR{queue/read_ahead_kb}="16384", ATTR{queue/max_sectors_kb}="4096"
+#   ACTION=="add|change", KERNEL=="vdc", SUBSYSTEM=="block", ATTR{queue/scheduler}="none", ATTR{queue/read_ahead_kb}="128", ATTR{queue/max_sectors_kb}="1024"
+#
+# Writeback tuning -> /etc/sysctl.d/99-llm-serving.conf:
+#   vm.dirty_background_ratio=5
+#   vm.dirty_ratio=10
+#   vm.dirty_expire_centisecs=2000
+#
+# systemctl enable --now fstrim.timer   (weekly trim; no mount-time discard)
 
 # Point Hugging Face cache at the data drive
 grep -q 'export HF_HOME="/mnt/llm-data/huggingface"' ~/.bashrc \
